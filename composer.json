@@ -1,0 +1,36 @@
+{
+  "name": "its-mieger/lara-db-ext",
+  "description": "Extension to laravel's database and ORM features, including model joins (SQL), multi column queries and prefixing for database fields",
+  "type": "library",
+  "license": "proprietary",
+  "authors": [
+    {
+      "name": "Christopher Mieger",
+      "email": "info@its-mieger.de"
+    }
+  ],
+  "require": {
+    "ext-pdo": "*"
+  },
+  "autoload": {
+    "psr-0": {
+      "": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-0": {
+      "": "test/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "ItsMieger\\LaraDbExt\\Provider\\LaraDbExtServiceProvider"
+      ]
+    }
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^7.0",
+    "orchestra/testbench": "~3.7.0"
+  }
+}
