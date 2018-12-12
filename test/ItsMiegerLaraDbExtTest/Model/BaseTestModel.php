@@ -11,10 +11,16 @@
 
 	use Illuminate\Database\Eloquent\Model;
 	use ItsMieger\LaraDbExt\Model\CreatesRelatedFromAttributes;
+	use ItsMieger\LaraDbExt\Model\Expressions;
+	use ItsMieger\LaraDbExt\Model\Identifiers;
+	use ItsMieger\LaraDbExt\Model\MassInserts;
 	use ItsMieger\LaraDbExt\Model\ResolvesBuilders;
 
 	abstract class BaseTestModel extends Model
 	{
+		use Identifiers;
 		use ResolvesBuilders;
 		use CreatesRelatedFromAttributes;
+		use Expressions;
+		use MassInserts;
 	}

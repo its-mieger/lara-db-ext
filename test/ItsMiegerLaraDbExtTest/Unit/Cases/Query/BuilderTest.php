@@ -421,7 +421,7 @@
 
 			$builder = new Builder(DB::connection());
 			$result  = $builder
-				->selectPrefixed('*', 'myPfx__')
+				->selectPrefixed('test_query_table.*', 'myPfx__')
 				->from('test_query_table')
 				->get();
 
@@ -433,7 +433,7 @@
 
 			$builder = new Builder(DB::connection());
 			$result  = $builder
-				->selectPrefixed('*', 'myPfx__')
+				->selectPrefixed('test_query_table.*', 'myPfx__')
 				->from('test_query_table')
 				->get()
 			;
@@ -486,7 +486,7 @@
 
 			$builder = new Builder(DB::connection());
 			$result  = $builder
-				->selectPrefixed(['id', new Expression('lower("name") as lName')], 'myPfx__')
+				->selectPrefixed(['id', new Expression('lower(name) as lName')], 'myPfx__')
 				->from('test_query_table')
 				->get()
 			;
@@ -609,7 +609,7 @@
 			$builder = new Builder(DB::connection());
 			$result  = $builder
 				->select('*')
-				->addSelectPrefixed(['id', new Expression('lower("name") as lName')], 'myPfx__')
+				->addSelectPrefixed(['id', new Expression('lower(name) as lName')], 'myPfx__')
 				->from('test_query_table')
 				->get()
 			;

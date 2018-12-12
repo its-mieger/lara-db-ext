@@ -9,6 +9,7 @@
 	namespace ItsMiegerLaraDbExtTest\Unit;
 
 
+	use Illuminate\Database\Connection;
 	use ItsMieger\LaraDbExt\Provider\LaraDbExtServiceProvider;
 
 	abstract class TestCase extends \Orchestra\Testbench\TestCase
@@ -23,6 +24,11 @@
 			parent::setUp();
 
 			$this->withFactories(__DIR__ . '/../../database/factories');
+
+
+			Connection::resolverFor('dummyMocked', function ($connection, $database, $prefix, $config) {
+				return new Connection($connection, $database, $prefix, $config);
+			});
 		}
 
 		/**
@@ -44,5 +50,26 @@
 			return [
 				LaraDbExtServiceProvider::class,
 			];
+		}
+
+		/**
+		 * Define environment setup.
+		 *
+		 * @param  \Illuminate\Foundation\Application $app
+		 * @return void
+		 */
+		protected function getEnvironmentSetUp($app) {
+
+			$app['config']->set('database.connections.dummyMocked', [
+				'driver'   => 'dummyMocked',
+				'database' => 'db',
+				'prefix'   => '',
+			]);
+
+			$app['config']->set('database.connections.dummyMockedPrefixed', [
+				'driver'   => 'dummyMocked',
+				'database' => 'db',
+				'prefix'   => 'myPfx_',
+			]);
 		}
 	}

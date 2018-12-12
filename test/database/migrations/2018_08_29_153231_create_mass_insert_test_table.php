@@ -10,7 +10,7 @@
 	 * Date: 28.11.18
 	 * Time: 14:14
 	 */
-	class CreateBelongsTable extends Migration
+	class CreateMassInsertTestTable extends Migration
 	{
 		/**
 		 * Run the migrations.
@@ -19,12 +19,11 @@
 		 */
 		public function up() {
 
-			Schema::create('belongs_table', function (Blueprint $table) {
+			Schema::create('mass_insert_tests', function (Blueprint $table) {
 				$table->bigIncrements('id');
-				$table->unsignedBigInteger('test_table_id');
-				$table->string('b_name', 255);
-				$table->string('b_x', 255);
-				$table->foreign('test_table_id')->references('id')->on('test_table');
+				$table->string('name', 255);
+				$table->string('u', 255);
+				$table->unique('u');
 				$table->timestamps();
 			});
 		}
@@ -35,6 +34,6 @@
 		 * @return void
 		 */
 		public function down() {
-			Schema::dropIfExists('belongs_table');
+			Schema::dropIfExists('mass_insert_tests');
 		}
 	}

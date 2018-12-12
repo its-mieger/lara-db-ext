@@ -11,6 +11,7 @@
 
 	use Illuminate\Foundation\Testing\DatabaseTransactions;
 	use Illuminate\Foundation\Testing\DatabaseMigrations;
+	use Illuminate\Support\Facades\DB;
 
 	trait CreatesTestingDatabase
 	{
@@ -26,7 +27,7 @@
 
 			// only load migrations, if test is using database and not run yet
 			if (isset($uses[DatabaseMigrations::class])
-			    || (isset($uses[DatabaseTransactions::class]) /*&& !static::$testingMigrationsRun*/)
+			    || (isset($uses[DatabaseTransactions::class]) && (!static::$testingMigrationsRun || DB::getDatabaseName() == ':memory:'))
 			) {
 
 				// load migrations to create tables required for testing
