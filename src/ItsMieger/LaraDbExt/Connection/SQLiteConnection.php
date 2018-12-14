@@ -9,7 +9,8 @@
 	namespace ItsMieger\LaraDbExt\Connection;
 
 
-	class SQLiteConnection extends \Illuminate\Database\SQLiteConnection
+	class SQLiteConnection extends \Illuminate\Database\SQLiteConnection implements Forkable
 	{
 		use ResolvesQuery;
+		use ForksSelf;
 	}

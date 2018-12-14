@@ -9,7 +9,9 @@
 	namespace ItsMieger\LaraDbExt\Connection;
 
 
-	class MySqlConnection extends \Illuminate\Database\MySqlConnection
+	class MySqlConnection extends \Illuminate\Database\MySqlConnection implements Forkable
 	{
 		use ResolvesQuery;
+		use ForksSelf;
+
 	}

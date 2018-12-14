@@ -9,7 +9,8 @@
 	namespace ItsMieger\LaraDbExt\Connection;
 
 
-	class PostgresConnection extends \Illuminate\Database\PostgresConnection
+	class PostgresConnection extends \Illuminate\Database\PostgresConnection implements Forkable
 	{
 		use ResolvesQuery;
+		use ForksSelf;
 	}

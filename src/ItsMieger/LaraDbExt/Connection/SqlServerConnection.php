@@ -9,7 +9,8 @@
 	namespace ItsMieger\LaraDbExt\Connection;
 
 
-	class SqlServerConnection extends \Illuminate\Database\SqlServerConnection
+	class SqlServerConnection extends \Illuminate\Database\SqlServerConnection implements Forkable
 	{
 		use ResolvesQuery;
+		use ForksSelf;
 	}

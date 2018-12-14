@@ -11,6 +11,8 @@
 
 
 	use ItsMieger\LaraDbExt\Concerns\AutoDetectWhereIn;
+	use ItsMieger\LaraDbExt\Concerns\ForkedConnection;
+	use ItsMieger\LaraDbExt\Concerns\ForkUnbuffered;
 	use ItsMieger\LaraDbExt\Concerns\WhereMultiColumns;
 	use ItsMieger\LaraDbExt\Concerns\WhereMultiIn;
 	use ItsMieger\LaraDbExt\Concerns\SelectPrefixed;
@@ -23,6 +25,8 @@
 		use WhereMultiColumns;
 		use WhereMultiIn;
 		use WhereNotNested;
+		use ForkedConnection;
+		use ForkUnbuffered;
 
 		/**
 		 * @inheritDoc
@@ -52,5 +56,6 @@
 				return parent::whereColumn(...func_get_args());
 			}, ...func_get_args());
 		}
+
 
 	}
