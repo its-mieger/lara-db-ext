@@ -106,7 +106,7 @@
 			$prefix = $this->encodeSelectPrefix($prefix);
 
 			// unshift the start wrap indicating the start of prefix usage
-			array_unshift($columns, new Expression("null as " . $grammar->wrap("<group prefix=\"$prefix\">")));
+			array_unshift($columns, new Expression("null as " . $grammar->wrap("<group prefix=$prefix>")));
 
 			// append the end wrap indicating the end of prefix usage
 			$columns[] = new Expression("null as " . $grammar->wrap("</group>"));
@@ -183,10 +183,10 @@
 					$currPrefix = null;
 					$colName    = 0; // we set col name to (int)0, so we can easily delete it later on
 				}
-				elseif (Str::startsWith($colName, '<group prefix="')) {
+				elseif (Str::startsWith($colName, '<group prefix=')) {
 					// start of a column group, we extract the prefix and set if for all following columns
-					$firstQuotePos = strpos($colName, '"');
-					$lastQuotePos  = strrpos($colName, '"');
+					$firstQuotePos = strpos($colName, '=');
+					$lastQuotePos  = strrpos($colName, '>');
 
 					$currPrefix = $this->decodeSelectPrefix(substr($colName, $firstQuotePos + 1, $lastQuotePos - $firstQuotePos - 1));
 					$colName    = 0; // we set col name to (int)0, so we can easily delete it later on
