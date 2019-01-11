@@ -62,14 +62,6 @@
 
 				static::$testingMigrationsRun = true;
 
-
-				//                $this->beforeApplicationDestroyed(function () use ($currOptions) {
-				//
-				//                    // rollback keeping default connection
-				//                    $defaultConnection = \DB::getDefaultConnection();
-				//                    $this->artisan('migrate:rollback', $currOptions);
-				//                    \DB::setDefaultConnection($defaultConnection);
-				//                });
 			}
 		}
 	}

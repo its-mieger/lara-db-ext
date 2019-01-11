@@ -108,10 +108,11 @@
 				// and so on are applied to the attributes
 				/** @var Model $model */
 				$model = new $modelClass;
+
 				foreach($currRow as $field => $value) {
 					$model->setAttribute($field, $value);
 				}
-				$attrValues = array_values($model->only(array_keys($currRow)));
+				$attrValues = array_values(array_intersect_key($model->getAttributes(), $currRow));
 
 
 				$bindings = array_merge($bindings, $attrValues);
@@ -157,6 +158,9 @@
 		 */
 		protected static function buildValuesList(array $updatedColumns, &$bindings = []) {
 			$out = [];
+
+			$modelClass = get_called_class();
+
 			foreach ($updatedColumns as $key => $value) {
 				if (is_numeric($key)) {
 					$out[] = static::quoteIdentifier($value) . ' = values(' . static::quoteIdentifier($value) . ')';
@@ -166,8 +170,16 @@
 						$out[] = static::quoteIdentifier($key) . " = $value";
 					}
 					else {
+						// Here we create a new model instance, set the attributes
+						// and retrieve the attributes again. This way mutations, casts
+						// and so on are applied to the attributes
+						/** @var Model $model */
+						$model = new $modelClass;
+
+						$model->setAttribute($key, $value);
+
 						$out[] = static::quoteIdentifier($key) . ' = ?';
-						$bindings[] = $value;
+						$bindings[] = $model->getAttributes()[$key];
 					}
 
 				}
