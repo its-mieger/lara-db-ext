@@ -135,3 +135,27 @@ This works also for the `whereColumn` functions:
 	DB:table('users')
 		->whereColumn(['name', 'age'], ['n', 'a'])
 		->get();
+		
+		
+## Timezone handling
+
+Time zone handling in database can be complicated. Laravel passes dates without timezone
+information to the database. This behavior is correct as the data is usually stored without
+any timezone information. When reading dates, Laravel (Eloquent) interprets dates using the
+default application timezone.
+
+But Laravel does not ensure that DateTime parameters are using the application timezone when
+passing them to the database. So if you pass a date with a different timezone to database, it
+will be interpreted using another timezone on reading.
+
+To ensure all DateTime parameters are converted to application timezone before sending them to
+database, this package adds the "adapt_timezone" configuration option for database connections.
+If set to true, any DateTime values will be converted to the application timezone before passing
+them to the database.
+
+### Database session timezone
+Some databases, such as MySQL use the database session timezone when converting dates to
+timestamps (see [MySQL Documentation for details](https://dev.mysql.com/doc/refman/8.0/en/datetime.html)).
+For MySQL this does only affect storing dates to TIMESTAMP columns (not for DATETIME columns) and
+NOW() and CURTIME() functions. Therefore you should always configure the "timezone" parameter
+for connections to the same value as the application timezone!

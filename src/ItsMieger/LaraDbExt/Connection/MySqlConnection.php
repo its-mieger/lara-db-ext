@@ -13,5 +13,6 @@
 	{
 		use ResolvesQuery;
 		use ForksSelf;
+		use AdaptsTimezone;
 
 	}
