@@ -15,6 +15,7 @@
 	use ItsMieger\LaraDbExt\Model\Identifiers;
 	use ItsMieger\LaraDbExt\Model\MassInserts;
 	use ItsMieger\LaraDbExt\Model\ResolvesBuilders;
+	use ItsMieger\LaraDbExt\Model\SerializeDateFormat;
 
 	abstract class BaseTestModel extends Model
 	{
@@ -23,4 +24,5 @@
 		use CreatesRelatedFromAttributes;
 		use Expressions;
 		use MassInserts;
+		use SerializeDateFormat;
 	}
