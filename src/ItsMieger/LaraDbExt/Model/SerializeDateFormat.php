@@ -22,21 +22,22 @@
 		 */
 		protected function serializeDate(DateTimeInterface $date) {
 
-			// adapt timezone
-			if ($this->serializeDateTimezone)
+			// adapt timezone, to explicitly set serialization timezone
+			if ($this->serializeDateTimezone) {
 				$date = Carbon::createFromTimestamp($date->getTimestamp())->setTimezone($this->serializeDateTimezone);
+			}
 
 			return $date->format($this->serializeDateFormat ?: $this->getDateFormat());
 		}
 
 		/**
-		 * Temporarily set model date format
-		 * @param string $format The date format
+		 * Temporarily set model date format and timezone for serialization
+		 * @param string|null $format The date format
 		 * @param string|\DateTimeZone|null $timezone The timezone dates are serialized in. If null, timezone is unchanged
 		 * @param callable $callback The callback
 		 * @return mixed The callback return
 		 */
-		public function withDateFormat(string $format, $timezone, callable $callback) {
+		public function withDateFormat(?string $format, $timezone, callable $callback) {
 
 			// remember current values
 			$beforeFmt = $this->serializeDateFormat;

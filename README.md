@@ -153,6 +153,9 @@ database, this package adds the "adapt_timezone" configuration option for databa
 If set to true, any DateTime values will be converted to the application timezone before passing
 them to the database.
 
+The `AdaptsAttributeTimezone` trait implements the timezone adaption
+for Eloquent model attributes.
+
 ### Database session timezone
 Some databases, such as MySQL use the database session timezone when converting dates to
 timestamps (see [MySQL Documentation for details](https://dev.mysql.com/doc/refman/8.0/en/datetime.html)).

@@ -10,6 +10,7 @@
 
 
 	use Illuminate\Database\Eloquent\Model;
+	use ItsMieger\LaraDbExt\Model\AdaptsAttributeTimezone;
 	use ItsMieger\LaraDbExt\Model\CreatesRelatedFromAttributes;
 	use ItsMieger\LaraDbExt\Model\Expressions;
 	use ItsMieger\LaraDbExt\Model\Identifiers;
@@ -25,4 +26,5 @@
 		use Expressions;
 		use MassInserts;
 		use SerializeDateFormat;
+		use AdaptsAttributeTimezone;
 	}

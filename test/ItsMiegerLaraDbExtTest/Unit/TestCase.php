@@ -16,6 +16,8 @@
 	{
 		use CreatesTestingDatabase;
 
+		protected $connectionsToTransact = [null, 'adapt-timezone-connection'];
+
 		/**
 		 * @inheritDoc
 		 */
@@ -71,5 +73,11 @@
 				'database' => 'db',
 				'prefix'   => 'myPfx_',
 			]);
+
+			// create testing connection with adapt_timezone
+			$defaultConnectionName = config('database.default');
+			$config = config("database.connections.$defaultConnectionName");
+			$config['adapt_timezone'] = true;
+			config()->set("database.connections.adapt-timezone-connection", $config);
 		}
 	}

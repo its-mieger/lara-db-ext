@@ -26,7 +26,7 @@
 				throw new SkippedTestError('This test requires a MySQL connection.');
 		}
 
-		public function testWithDateFormat() {
+		public function testWithDateFormat_formatOnly() {
 
 
 			/** @var TestModelSerializeDateFormat $m1 */
@@ -51,7 +51,7 @@
 			$this->assertSame($m1->created_at->format($origFormat), $m1->toArray()['created_at']);
 		}
 
-		public function testWithDateFormat_andTimezone() {
+		public function testWithDateFormat_formatAndTimezone() {
 
 
 			/** @var TestModelSerializeDateFormat $m1 */
@@ -75,6 +75,37 @@
 
 
 				$this->assertSame($model->created_at->copy()->setTimezone($testTimezone)->format($testFormat), $model->toArray()['created_at']);
+
+				return 17;
+			});
+			$this->assertSame(17, $ret);
+
+
+			// check that original format is reverted
+			$this->assertSame($m1->created_at->format($origFormat), $m1->toArray()['created_at']);
+		}
+
+		public function testWithDateFormat_timezoneOnly() {
+
+
+			/** @var TestModelSerializeDateFormat $m1 */
+			$m1 = factory(TestModelSerializeDateFormat::class)->create();
+
+			$testTimezone = 'Europe/Berlin';
+
+			$origFormat = $m1->getDateFormat();
+
+
+			$now = new Carbon();
+
+			// check that date's are correctly formatted
+			$ret = $m1->withDateFormat(null, $testTimezone , function(TestModelSerializeDateFormat $model) use ($testTimezone, $now) {
+
+				if ($model->created_at->getTimezone()->getOffset($now) == (new \DateTimeZone($testTimezone))->getOffset($now))
+					$this->markTestSkipped('Test timezone offset matches model\'s native timezone offset');
+
+
+				$this->assertSame($model->created_at->copy()->setTimezone($testTimezone)->format($model->getDateFormat()), $model->toArray()['created_at']);
 
 				return 17;
 			});

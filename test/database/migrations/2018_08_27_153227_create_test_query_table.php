@@ -23,6 +23,7 @@
 				$table->bigIncrements('id');
 				$table->string('name', 255);
 				$table->string('x', 255);
+				$table->dateTime('dt')->nullable();
 				$table->timestamps();
 			});
 		}
