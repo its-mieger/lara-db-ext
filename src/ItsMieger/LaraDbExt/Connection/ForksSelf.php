@@ -79,7 +79,8 @@
 				throw new \RuntimeException('Cannot destroy this connection fork because it is not a forked connection.');
 
 			config()->set('database.connections.' . $this->getName(), null);
-			$this->setPdo(null);
+
+			$this->disconnect();
 		}
 
 	}
