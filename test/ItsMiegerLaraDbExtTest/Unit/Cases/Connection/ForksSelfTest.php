@@ -31,6 +31,39 @@
 			$this->assertNotSame($connection->getPdo(), $fork->getPdo());
 			$this->assertEquals($connection->getPdo()->getAttribute(\PDO::ATTR_DRIVER_NAME), $fork->getPdo()->getAttribute(\PDO::ATTR_DRIVER_NAME));
 
+			// test select
+			$fork->select('SELECT 1');
+
+			// check that forked connections are not kept by database manager
+			$this->expectException(\InvalidArgumentException::class);
+			\DB::connection($fork->getName());
+		}
+
+		public function testReconnect() {
+			/** @var Connection|Forkable $connection */
+			$connection = \DB::connection();
+
+			if (!($connection instanceof MySqlConnection))
+				throw new SkippedTestError('This test requires a MySQL connection');
+
+			$fork = $connection->fork([], [\PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => false]);
+
+			$pdoBefore = $fork->getPdo();
+
+			// do reconnect and check again
+			$fork->reconnect();
+
+			// test select
+			$fork->select('SELECT 1');
+
+			$pdoAfter = $fork->getPdo();
+
+			$this->assertNotSame($pdoBefore, $pdoAfter);
+
+			// check that forked connections are not kept by database manager
+			$this->expectException(\InvalidArgumentException::class);
+			\DB::connection($fork->getName());
+
 		}
 
 		public function testOverrideAttribute() {
