@@ -665,24 +665,25 @@
 
 			$builder = new Builder(DB::connection());
 
+			$connectionBefore = $builder->getConnection();
 
 			$forked = $builder->forkedConnection();
-			$this->assertNotSame($builder, $forked);
-			$this->assertInstanceOf(get_class($builder), $forked);
-			$this->assertNotSame($builder->getConnection(), $forked->getConnection());
-			$this->assertNotSame($builder->getConnection()->getPdo(), $forked->getConnection()->getPdo());
+			$this->assertSame($builder, $forked);
+			$this->assertNotSame($connectionBefore, $forked->getConnection());
+			$this->assertNotSame($connectionBefore->getPdo(), $forked->getConnection()->getPdo());
 		}
 
 		public function testWithForkedConnection() {
 
 			$builder = new Builder(DB::connection());
 
+			$connectionBefore = $builder->getConnection();
+
 			$f = null;
-			$ret = $builder->withForkedConnection(function($forked) use ($builder, &$f) {
+			$ret = $builder->withForkedConnection(function($forked) use ($builder, $connectionBefore, &$f) {
 				$this->assertNotSame($builder, $forked);
-				$this->assertInstanceOf(get_class($builder), $forked);
-				$this->assertNotSame($builder->getConnection(), $forked->getConnection());
-				$this->assertNotSame($builder->getConnection()->getPdo(), $forked->getConnection()->getPdo());
+				$this->assertNotSame($connectionBefore, $forked->getConnection());
+				$this->assertNotSame($connectionBefore->getPdo(), $forked->getConnection()->getPdo());
 
 				$f = $forked;
 
@@ -702,13 +703,13 @@
 			if (!($connection instanceof MySqlConnection))
 				throw new SkippedTestError('This test requires a MySQL connection');
 
+			$connectionBefore = $builder->getConnection();
 
 			$forked = $builder->forkUnbuffered();
-			$this->assertNotSame($builder, $forked);
-			$this->assertInstanceOf(get_class($builder), $forked);
-			$this->assertNotSame($builder->getConnection(), $forked->getConnection());
-			$this->assertNotSame($builder->getConnection()->getPdo(), $forked->getConnection()->getPdo());
-			$this->assertEquals(true, $builder->getConnection()->getPdo()->getAttribute(\PDO::MYSQL_ATTR_USE_BUFFERED_QUERY));
+			$this->assertSame($builder, $forked);
+			$this->assertNotSame($connectionBefore, $forked->getConnection());
+			$this->assertNotSame($connectionBefore->getPdo(), $forked->getConnection()->getPdo());
+			$this->assertEquals(true, $connectionBefore->getPdo()->getAttribute(\PDO::MYSQL_ATTR_USE_BUFFERED_QUERY));
 			$this->assertEquals(false, $forked->getConnection()->getPdo()->getAttribute(\PDO::MYSQL_ATTR_USE_BUFFERED_QUERY));
 		}
 
@@ -721,14 +722,14 @@
 			if (!($connection instanceof MySqlConnection))
 				throw new SkippedTestError('This test requires a MySQL connection');
 
+			$connectionBefore = $builder->getConnection();
 
 			$f   = null;
-			$ret = $builder->withUnbufferedFork(function ($forked) use ($builder, &$f) {
+			$ret = $builder->withUnbufferedFork(function ($forked) use ($builder, $connectionBefore, &$f) {
 				$this->assertNotSame($builder, $forked);
-				$this->assertInstanceOf(get_class($builder), $forked);
-				$this->assertNotSame($builder->getConnection(), $forked->getConnection());
-				$this->assertNotSame($builder->getConnection()->getPdo(), $forked->getConnection()->getPdo());
-				$this->assertEquals(true, $builder->getConnection()->getPdo()->getAttribute(\PDO::MYSQL_ATTR_USE_BUFFERED_QUERY));
+				$this->assertNotSame($connectionBefore, $forked->getConnection());
+				$this->assertNotSame($connectionBefore->getPdo(), $forked->getConnection()->getPdo());
+				$this->assertEquals(true, $connectionBefore->getPdo()->getAttribute(\PDO::MYSQL_ATTR_USE_BUFFERED_QUERY));
 				$this->assertEquals(false, $forked->getConnection()->getPdo()->getAttribute(\PDO::MYSQL_ATTR_USE_BUFFERED_QUERY));
 
 				$f = $forked;

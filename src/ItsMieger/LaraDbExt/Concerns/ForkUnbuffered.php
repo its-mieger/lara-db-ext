@@ -15,8 +15,8 @@
 	trait ForkUnbuffered
 	{
 		/**
-		 * Creates a copy of this instance using a forked unbuffered connection
-		 * @return Builder The new instance
+		 * Forks the connection of this builder instance using unbuffered mode
+		 * @return Builder This instance
 		 */
 		public function forkUnbuffered() {
 			/** @var Connection $connection */

@@ -16,10 +16,10 @@
 	trait ForkedConnection
 	{
 		/**
-		 * Creates a copy of this instance using a forked connection
+		 * Forks the connection of this builder instance
 		 * @param array $options Allows to override connection options
 		 * @param array $attributes Allows to set PDO attributes
-		 * @return Builder The new instance
+		 * @return Builder This instance
 		 */
 		public function forkedConnection(array $options = [], array $attributes = []) {
 			/** @var Connection $connection */
@@ -28,11 +28,11 @@
 				throw new \RuntimeException('Cannot fork connection because it does not implement forking');
 
 			// clone this instance and set forked connection
-			$ret             = clone $this;
-			$ret->connection = $connection->fork($options, $attributes);
+			//$ret             = clone $this;
+			$this->connection = $connection->fork($options, $attributes);
 
 			/** @noinspection PhpIncompatibleReturnTypeInspection */
-			return $ret;
+			return $this;
 		}
 
 		/**
@@ -44,7 +44,10 @@
 		 * @return mixed The callback return
 		 */
 		public function withForkedConnection($callback, array $options = [], array $attributes = []) {
-			$query = $this->forkedConnection($options, $attributes);
+
+			$query = clone $this;
+
+			$query->forkedConnection($options, $attributes);
 
 			$ret = call_user_func($callback, $query);
 
