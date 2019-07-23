@@ -9,6 +9,7 @@
 	namespace ItsMiegerLaraDbExtTest\Unit;
 
 
+	use Carbon\Carbon;
 	use Illuminate\Database\Connection;
 	use ItsMieger\LaraDbExt\Provider\LaraDbExtServiceProvider;
 
@@ -24,6 +25,9 @@
 		protected function setUp() {
 
 			parent::setUp();
+
+			// rest test now
+			Carbon::setTestNow();
 
 			$this->withFactories(__DIR__ . '/../../database/factories');
 
@@ -80,4 +84,6 @@
 			$config['adapt_timezone'] = true;
 			config()->set("database.connections.adapt-timezone-connection", $config);
 		}
+
+
 	}
