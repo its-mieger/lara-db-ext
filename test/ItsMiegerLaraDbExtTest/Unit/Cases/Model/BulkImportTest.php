@@ -8,7 +8,6 @@
 	use Illuminate\Database\Eloquent\Collection;
 	use Illuminate\Database\MySqlConnection;
 	use Illuminate\Foundation\Testing\DatabaseTransactions;
-	use Illuminate\Support\Facades\DB;
 	use ItsMiegerLaraDbExtTest\Model\TestBulkImport;
 	use ItsMiegerLaraDbExtTest\Model\TestBulkImportWithoutCreatedMark;
 	use ItsMiegerLaraDbExtTest\Model\TestBulkImportWithoutModifiedMark;
@@ -40,6 +39,37 @@
 				});
 		}
 
+		public function testWhen_true() {
+
+			$import = TestBulkImport::bulkImport();
+
+			$invoked = false;
+
+			$import->when(true, function($v) use (&$invoked, $import) {
+
+				$this->assertSame($import, $v);
+
+				$invoked = true;
+
+			});
+
+			$this->assertTrue($invoked);
+		}
+
+		public function testWhen_false() {
+
+			$import = TestBulkImport::bulkImport();
+
+			$invoked = false;
+
+			$import->when(false, function() use (&$invoked) {
+
+				$invoked = true;
+
+			});
+
+			$this->assertFalse($invoked);
+		}
 
 
 		public function testImport_onePerModificationType() {

@@ -259,6 +259,19 @@
 		}
 
 		/**
+		 * Invokes the given callback if condition is truthy
+		 * @param mixed $condition The condition
+		 * @param callable $callback The callback. Will receive this instance as argument
+		 * @return $this
+		 */
+		public function when($condition, callable $callback) {
+			if ($condition)
+				call_user_func($callback, $this);
+
+			return $this;
+		}
+
+		/**
 		 * Performs the bulk import
 		 * @param callable $callback Callback which fills the passed buffer with records to import
 		 */
