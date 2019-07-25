@@ -36,6 +36,17 @@
 			yield from ($this->hasModelsJoined() ? $this->cursorWithJoined([]) : parent::cursor());
 		}
 
+		/**
+		 * Get a generator for the given query.
+		 *
+		 * @return \Generator
+		 */
+		public function generate() {
+			foreach ($this->applyScopes()->query->generate() as $record) {
+				yield $this->model->newFromBuilder($record);
+			}
+		}
+
 
 
 	}

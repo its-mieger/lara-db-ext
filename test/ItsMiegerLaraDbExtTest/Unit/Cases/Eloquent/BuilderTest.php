@@ -18,6 +18,7 @@
 	use ItsMiegerLaraDbExtTest\Model\TestModelEloquentBuilderHasManyRoot;
 	use ItsMiegerLaraDbExtTest\Model\TestModelEloquentBuilderHasOneChild;
 	use ItsMiegerLaraDbExtTest\Model\TestModelEloquentBuilderHasOneRoot;
+	use ItsMiegerLaraDbExtTest\Model\TestModelQueryBuilder;
 	use ItsMiegerLaraDbExtTest\Unit\TestCase;
 
 	class BuilderTest extends TestCase
@@ -84,6 +85,24 @@
 			$this->assertInstanceOf(TestModelEloquentBuilderHasOneChild::class, $returnedParent->child);
 			$this->assertEquals($child1->getAttributes(), $returnedParent->child->getAttributes());
 
+		}
+
+		public function testGenerate() {
+			$r1 = factory(TestModelQueryBuilder::class)->create();
+			$r2 = factory(TestModelQueryBuilder::class)->create();
+			$r3 = factory(TestModelQueryBuilder::class)->create();
+
+			$gen = TestModelQueryBuilder::where('id', '>', 0)->orderBy('id')->generate();
+
+			$results = [];
+			foreach($gen as $curr) {
+				$results[] = $curr;
+			}
+
+
+			$this->assertEquals($r1->getAttributes(), array_filter($results[0]->getAttributes()));
+			$this->assertEquals($r2->getAttributes(), array_filter($results[1]->getAttributes()));
+			$this->assertEquals($r3->getAttributes(), array_filter($results[2]->getAttributes()));
 		}
 
 	}
