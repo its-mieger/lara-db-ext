@@ -788,6 +788,223 @@
 			]);
 		}
 
+		public function testImport_targetWhere_multiple() {
+
+			$now1 = new Carbon('-1 minute');
+			$now2 = new Carbon();
+
+
+
+			Carbon::setTestNow($now1);
+			$this->createExisting([
+				[
+					'a' => 'vA1',
+					'b' => 'groupA',
+					'u' => 'toBeUpdatedA',
+				],
+				[
+					'a' => 'vA2',
+					'b' => 'groupA',
+					'u' => 'toBeUnchangedA',
+				],
+				[
+					'a' => 'vA3',
+					'b' => 'groupA',
+					'u' => 'missingA',
+				],
+				[
+					'a' => 'vA1',
+					'b' => 'groupB',
+					'u' => 'toBeUpdatedB',
+				],
+				[
+					'a' => 'vA2',
+					'b' => 'groupB',
+					'u' => 'toBeUnchangedB',
+				],
+				[
+					'a' => 'vA3',
+					'b' => 'groupB',
+					'u' => 'missingB',
+				],
+			]);
+
+
+			$createdCalled = 0;
+			$created       = [];
+
+			$modifiedCalled = 0;
+			$modified       = [];
+
+			$missingCalled = 0;
+			$missing       = [];
+
+			Carbon::setTestNow($now2);
+
+			TestBulkImport::bulkImport()
+				->updateFields(['a', 'b'])
+				->modifiedWhen(['a', 'b'])
+				->targetWhere('b', ['groupA', 'groupC'])
+				->callbackFields(['a', 'b', 'u'])
+				->onCreated(function ($records) use (&$created, &$createdCalled) {
+					++$createdCalled;
+
+					$this->assertInstanceOf(Collection::class, $records);
+					$created = array_merge($created, $records->map(function ($v) {
+						return [
+							'a' => $v['a'],
+							'b' => $v['b'],
+							'u' => $v['u'],
+						];
+					})->toArray());
+				})
+				->onModified(function ($records) use (&$modified, &$modifiedCalled) {
+					++$modifiedCalled;
+
+					$this->assertInstanceOf(Collection::class, $records);
+					$modified = array_merge($modified, array_merge($modified, $records->map(function ($v) {
+						return [
+							'a' => $v['a'],
+							'b' => $v['b'],
+							'u' => $v['u'],
+						];
+					})->toArray()));
+				})
+				->onMissing(function ($records) use (&$missing, &$missingCalled) {
+					++$missingCalled;
+
+					$this->assertInstanceOf(Collection::class, $records);
+					$missing = array_merge($missing, array_merge($missing, $records->map(function ($v) {
+						return [
+							'a' => $v['a'],
+							'b' => $v['b'],
+							'u' => $v['u'],
+						];
+					})->toArray()));
+				})
+				->perform(function (FlushingBuffer $buffer) {
+
+					$buffer->addMultiple([
+						[
+							'a' => 'vA1a',
+							'b' => 'groupA',
+							'u' => 'toBeUpdatedA',
+						],
+						[
+							'a' => 'vA2',
+							'b' => 'groupA',
+							'u' => 'toBeUnchangedA',
+						],
+						[
+							'a' => 'vA3a',
+							'b' => 'groupA',
+							'u' => 'toBeCreatedA',
+						],
+						// out of target where
+						[
+							'a' => 'vA1a',
+							'b' => 'groupB',
+							'u' => 'toBeUpdatedB',
+						],
+						[
+							'a' => 'vA2',
+							'b' => 'groupB',
+							'u' => 'toBeUnchangedB',
+						],
+						[
+							'a' => 'vA3a',
+							'b' => 'groupB',
+							'u' => 'toBeCreatedB',
+						],
+					]);
+
+				});
+
+			$this->assertSame(1, $createdCalled);
+			$this->assertSame(1, $modifiedCalled);
+			$this->assertSame(1, $missingCalled);
+
+			$this->assertEquals([
+				[
+					'a' => 'vA3a',
+					'b' => 'groupA',
+					'u' => 'toBeCreatedA',
+				],
+			], $created);
+			$this->assertEquals([
+				[
+					'a' => 'vA1a',
+					'b' => 'groupA',
+					'u' => 'toBeUpdatedA',
+				]
+			], $modified);
+			$this->assertEquals([
+				[
+					'a' => 'vA3',
+					'b' => 'groupA',
+					'u' => 'missingA',
+				]
+			], $missing);
+
+			$this->assertDatabaseHas(TestBulkImport::table(), [
+				'a'          => 'vA3a',
+				'b'          => 'groupA',
+				'u'          => 'toBeCreatedA',
+				'created_at' => $now2,
+				'updated_at' => $now2,
+			]);
+			$this->assertDatabaseHas(TestBulkImport::table(), [
+				'a'          => 'vA1a',
+				'b'          => 'groupA',
+				'u'          => 'toBeUpdatedA',
+				'created_at' => $now1,
+				'updated_at' => $now2,
+			]);
+			$this->assertDatabaseHas(TestBulkImport::table(), [
+				'a'          => 'vA2',
+				'b'          => 'groupA',
+				'u'          => 'toBeUnchangedA',
+				'created_at' => $now1,
+				'updated_at' => $now1,
+			]);
+			$this->assertDatabaseHas(TestBulkImport::table(), [
+				'a'          => 'vA3',
+				'b'          => 'groupA',
+				'u'          => 'missingA',
+				'created_at' => $now1,
+				'updated_at' => $now1,
+			]);
+
+			$this->assertDatabaseHas(TestBulkImport::table(), [
+				'a'          => 'vA3a',
+				'b'          => 'groupB',
+				'u'          => 'toBeCreatedB',
+				'created_at' => $now2,
+				'updated_at' => $now2,
+			]);
+			$this->assertDatabaseHas(TestBulkImport::table(), [
+				'a'          => 'vA1a',
+				'b'          => 'groupB',
+				'u'          => 'toBeUpdatedB',
+				'created_at' => $now1,
+				'updated_at' => $now2,
+			]);
+			$this->assertDatabaseHas(TestBulkImport::table(), [
+				'a'          => 'vA2',
+				'b'          => 'groupB',
+				'u'          => 'toBeUnchangedB',
+				'created_at' => $now1,
+				'updated_at' => $now1,
+			]);
+			$this->assertDatabaseHas(TestBulkImport::table(), [
+				'a'          => 'vA3',
+				'b'          => 'groupB',
+				'u'          => 'missingB',
+				'created_at' => $now1,
+				'updated_at' => $now1,
+			]);
+		}
+
 
 		public function testImport_onlyCreatedCallback() {
 

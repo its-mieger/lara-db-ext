@@ -177,7 +177,7 @@
 		 * @return $this
 		 */
 		public function targetWhere($column, $operator = null, $value = null, $boolean = 'and') {
-			$this->targetConditionsArgs[] = [$column, $operator, $value, $boolean];
+			$this->targetConditionsArgs[] = func_get_args();
 
 			return $this;
 		}
