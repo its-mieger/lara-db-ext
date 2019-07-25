@@ -11,6 +11,7 @@
 
 
 	use ItsMieger\LaraDbExt\Concerns\AutoDetectWhereIn;
+	use ItsMieger\LaraDbExt\Concerns\ChunkedGenerate;
 	use ItsMieger\LaraDbExt\Concerns\ForkedConnection;
 	use ItsMieger\LaraDbExt\Concerns\ForkUnbuffered;
 	use ItsMieger\LaraDbExt\Concerns\WhereMultiColumns;
@@ -27,6 +28,7 @@
 		use WhereNotNested;
 		use ForkedConnection;
 		use ForkUnbuffered;
+		use ChunkedGenerate;
 
 		/**
 		 * @inheritDoc

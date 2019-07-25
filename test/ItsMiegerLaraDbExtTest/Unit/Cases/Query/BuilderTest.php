@@ -742,6 +742,75 @@
 			$this->assertNull($f->getConnection()->getPdo());
 		}
 
+		public function testGenerate() {
+			$m1 = factory(TestModelQueryBuilder::class)->create(['name' => 'a']);
+			$m2 = factory(TestModelQueryBuilder::class)->create(['name' => 'b']);
+			$m3 = factory(TestModelQueryBuilder::class)->create(['name' => 'c']);
+
+			$builder = new Builder(DB::connection());
+			$generator  = $builder
+				->select('*')
+				->from('test_query_table')
+				->orderBy('name')
+				->generate(2);
+
+			$this->assertInstanceOf(\Generator::class, $generator);
+
+			$result = [];
+			foreach($generator as $curr) {
+				$result[] = $curr;
+			}
+
+			$this->assertEquals([
+				'id'           => $m1->id,
+				'name'         => $m1->name,
+				'x'            => $m1->x,
+				'dt'           => $m1->dt,
+				'created_at'   => $m1->created_at,
+				'updated_at'   => $m1->updated_at,
+			], $result[0]);
+
+			$this->assertEquals([
+				'id'           => $m2->id,
+				'name'         => $m2->name,
+				'x'            => $m2->x,
+				'dt'           => $m2->dt,
+				'created_at'   => $m2->created_at,
+				'updated_at'   => $m2->updated_at,
+			], $result[1]);
+
+			$this->assertEquals([
+				'id'           => $m3->id,
+				'name'         => $m3->name,
+				'x'            => $m3->x,
+				'dt'           => $m3->dt,
+				'created_at'   => $m3->created_at,
+				'updated_at'   => $m3->updated_at,
+			], $result[2]);
+
+			$this->assertCount(3, $result);
+		}
+
+		public function testGenerate_noResults() {
+
+
+			$builder = new Builder(DB::connection());
+			$generator  = $builder
+				->select('*')
+				->from('test_query_table')
+				->orderBy('name')
+				->generate(2);
+
+			$this->assertInstanceOf(\Generator::class, $generator);
+
+			$result = [];
+			foreach($generator as $curr) {
+				$result[] = $curr;
+			}
+
+			$this->assertEquals([], $result);
+		}
+
 		protected function getBuilder() {
 			$grammar   = new Grammar;
 			$processor = m::mock(Processor::class);
