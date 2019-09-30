@@ -273,9 +273,9 @@
 
 		/**
 		 * Prepares the bulk import
-		 * @return array Returns an array with exactly two arguments. First one is the buffer to fill. Second is a closure to call after all data has been sent to the buffer.
+		 * @return PreparedBulkImport The prepared bulk import
 		 */
-		public function prepare() {
+		public function prepare() : PreparedBulkImport {
 			if (!$this->model->getConnection()->transactionLevel())
 				throw new RuntimeException('Bulk import cannot be performed without open transaction');
 			if (empty($this->updateFields))
@@ -419,7 +419,7 @@
 				}
 			};
 
-			return [$buffer, $afterCallback];
+			return new PreparedBulkImport($buffer, $afterCallback);
 		}
 
 		/**
@@ -428,12 +428,13 @@
 		 */
 		public function perform(callable $callback) {
 
-			[$buffer, $afterCallback] = $this->prepare();
+			$prepared = $this->prepare();
 
 			// invoke user callback (which fills the buffer)
-			call_user_func($callback, $buffer);
+			call_user_func($callback, $prepared->getBuffer());
 
-			$afterCallback();
+			// finish import
+			$prepared->flush();
 		}
 
 		/**

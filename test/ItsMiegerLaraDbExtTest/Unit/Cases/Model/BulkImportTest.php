@@ -1630,7 +1630,7 @@
 
 			Carbon::setTestNow($now2);
 
-			[$buffer, $afterCallback] = TestBulkImport::bulkImport()
+			$prepared = TestBulkImport::bulkImport()
 				->updateFields(['a', 'b'])
 				->modifiedWhen(['a', 'b'])
 				->callbackFields(['a', 'b', 'u'])
@@ -1672,7 +1672,7 @@
 				})
 				->prepare();
 
-			$buffer->addMultiple([
+			$prepared->getBuffer()->addMultiple([
 				[
 					'a' => 'vA1a',
 					'b' => 'vB1',
@@ -1690,7 +1690,7 @@
 				],
 			]);
 
-			$afterCallback();
+			$prepared->flush();
 
 			$this->assertSame(1, $createdCalled);
 			$this->assertSame(1, $modifiedCalled);
