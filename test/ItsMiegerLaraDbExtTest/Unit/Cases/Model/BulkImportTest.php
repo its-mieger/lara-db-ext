@@ -1593,6 +1593,160 @@
 			]);
 		}
 
+		public function testImport_usingPrepare() {
+
+			$now1 = new Carbon('-1 minute');
+			$now2 = new Carbon();
+
+
+			Carbon::setTestNow($now1);
+			$this->createExisting([
+				[
+					'a' => 'vA1',
+					'b' => 'vB1',
+					'u' => 'toBeUpdated',
+				],
+				[
+					'a' => 'vA2',
+					'b' => 'vB2',
+					'u' => 'toBeUnchanged',
+				],
+				[
+					'a' => 'vA3',
+					'b' => 'vB3',
+					'u' => 'missing',
+				],
+			]);
+
+
+			$createdCalled = 0;
+			$created       = [];
+
+			$modifiedCalled = 0;
+			$modified       = [];
+
+			$missingCalled = 0;
+			$missing       = [];
+
+			Carbon::setTestNow($now2);
+
+			[$buffer, $afterCallback] = TestBulkImport::bulkImport()
+				->updateFields(['a', 'b'])
+				->modifiedWhen(['a', 'b'])
+				->callbackFields(['a', 'b', 'u'])
+				->onCreated(function ($records) use (&$created, &$createdCalled) {
+					++$createdCalled;
+
+					$this->assertInstanceOf(Collection::class, $records);
+					$created = array_merge($created, $records->map(function ($v) {
+						return [
+							'a' => $v['a'],
+							'b' => $v['b'],
+							'u' => $v['u'],
+						];
+					})->toArray());
+				})
+				->onModified(function ($records) use (&$modified, &$modifiedCalled) {
+					++$modifiedCalled;
+
+					$this->assertInstanceOf(Collection::class, $records);
+					$modified = array_merge($modified, array_merge($modified, $records->map(function ($v) {
+						return [
+							'a' => $v['a'],
+							'b' => $v['b'],
+							'u' => $v['u'],
+						];
+					})->toArray()));
+				})
+				->onMissing(function ($records) use (&$missing, &$missingCalled) {
+					++$missingCalled;
+
+					$this->assertInstanceOf(Collection::class, $records);
+					$missing = array_merge($missing, array_merge($missing, $records->map(function ($v) {
+						return [
+							'a' => $v['a'],
+							'b' => $v['b'],
+							'u' => $v['u'],
+						];
+					})->toArray()));
+				})
+				->prepare();
+
+			$buffer->addMultiple([
+				[
+					'a' => 'vA1a',
+					'b' => 'vB1',
+					'u' => 'toBeUpdated',
+				],
+				[
+					'a' => 'vA2',
+					'b' => 'vB2',
+					'u' => 'toBeUnchanged',
+				],
+				[
+					'a' => 'vA3a',
+					'b' => 'vB3',
+					'u' => 'toBeCreated',
+				],
+			]);
+
+			$afterCallback();
+
+			$this->assertSame(1, $createdCalled);
+			$this->assertSame(1, $modifiedCalled);
+			$this->assertSame(1, $missingCalled);
+			$this->assertEquals([
+				[
+					'a' => 'vA3a',
+					'b' => 'vB3',
+					'u' => 'toBeCreated',
+				],
+			], $created);
+			$this->assertEquals([
+				[
+					'a' => 'vA1a',
+					'b' => 'vB1',
+					'u' => 'toBeUpdated',
+				]
+			], $modified);
+			$this->assertEquals([
+				[
+					'a' => 'vA3',
+					'b' => 'vB3',
+					'u' => 'missing',
+				]
+			], $missing);
+
+			$this->assertDatabaseHas(TestBulkImport::table(), [
+				'a'          => 'vA3a',
+				'b'          => 'vB3',
+				'u'          => 'toBeCreated',
+				'created_at' => $now2,
+				'updated_at' => $now2,
+			]);
+			$this->assertDatabaseHas(TestBulkImport::table(), [
+				'a'          => 'vA1a',
+				'b'          => 'vB1',
+				'u'          => 'toBeUpdated',
+				'created_at' => $now1,
+				'updated_at' => $now2,
+			]);
+			$this->assertDatabaseHas(TestBulkImport::table(), [
+				'a'          => 'vA2',
+				'b'          => 'vB2',
+				'u'          => 'toBeUnchanged',
+				'created_at' => $now1,
+				'updated_at' => $now1,
+			]);
+			$this->assertDatabaseHas(TestBulkImport::table(), [
+				'a'          => 'vA3',
+				'b'          => 'vB3',
+				'u'          => 'missing',
+				'created_at' => $now1,
+				'updated_at' => $now1,
+			]);
+		}
+
 		// TODO: test buffer sizes
 
 		// TODO: test without lock

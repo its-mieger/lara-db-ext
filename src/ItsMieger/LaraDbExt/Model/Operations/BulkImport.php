@@ -272,11 +272,10 @@
 		}
 
 		/**
-		 * Performs the bulk import
-		 * @param callable $callback Callback which fills the passed buffer with records to import
+		 * Prepares the bulk import
+		 * @return array Returns an array with exactly two arguments. First one is the buffer to fill. Second is a closure to call after all data has been sent to the buffer.
 		 */
-		public function perform(callable $callback) {
-
+		public function prepare() {
 			if (!$this->model->getConnection()->transactionLevel())
 				throw new RuntimeException('Bulk import cannot be performed without open transaction');
 			if (empty($this->updateFields))
@@ -318,7 +317,7 @@
 			$updateFields = array_unique(array_merge($updateFields, $this->updateFields));
 
 
-			// create buffer
+			// create buffer and return it
 			$buffer = new FlushingBuffer($this->bufferSize, function ($data) use ($updateFields, $modelInstance, $createAtField, $updatedAtField, $batchIdField, $createdMarkField, $modifiedMarkField, $batchId) {
 
 				$default = new stdClass();
@@ -344,83 +343,97 @@
 				call_user_func([get_class($modelInstance), 'insertOnDuplicateKey'], $data, $updateFields);
 			});
 
+			$afterCallback = function() use ($buffer, $modelInstance, $batchId, $batchIdField, $modifiedMarkField, $createdMarkField) {
+				// flush buffer
+				$buffer->flush();
+
+
+				// evaluate data changes
+				$evaluateCreated  = $this->createdCallback ? true : false;
+				$evaluateModified = $this->modifiedCallback ? true : false;
+				$evaluateMissing  = $this->missingCallback ? true : false;
+				if ($evaluateMissing || $evaluateCreated || $evaluateModified) {
+
+					// init fields to be returned to callbacks
+					$evFields = $this->callbackFields ?: [$modelInstance->getKeyName()];
+
+					// add batch id and mark fields to field list
+					$evFields[] = $batchIdField;
+					if ($evaluateModified) {
+						$evFields[] = $modifiedMarkField;
+					}
+					if ($evaluateCreated) {
+						$evFields[] = $createdMarkField;
+					}
+
+					// init callback buffers
+					$collectionResolver = function () {
+						return new Collection();
+					};
+					$createdBuffer      = $evaluateCreated ? new FlushingBuffer($this->callbackBufferSize, $this->createdCallback, $collectionResolver) : null;
+					$modifiedBuffer     = $evaluateModified ? new FlushingBuffer($this->callbackBufferSize, $this->modifiedCallback, $collectionResolver) : null;
+					$missingBuffer      = $evaluateMissing ? new FlushingBuffer($this->callbackBufferSize, $this->missingCallback, $collectionResolver) : null;
+
+
+					// query data changes
+					$this->compileTargetConditions($modelInstance->newQuery())
+						// when no missing callback set, we do not have to query the whole scope
+						// but only the records affected by this batch
+						->when(!$missingBuffer, function ($query) use ($batchId) {
+							/** @var Builder $query */
+							return $query->where($this->batchIdField, $batchId);
+						})
+						->select($evFields)
+						->chunk(500, function ($records) use ($batchId, $createdBuffer, $modifiedBuffer, $missingBuffer, $batchIdField, $createdMarkField, $modifiedMarkField) {
+
+							foreach ($records as $curr) {
+								if ($curr[$batchIdField] == $batchId) {
+
+									if ($createdBuffer && $curr[$createdMarkField] ?? false) {
+										// created
+										$createdBuffer->add($curr);
+									}
+									elseif ($modifiedBuffer && $curr[$modifiedMarkField]) {
+										// modified
+										$modifiedBuffer->add($curr);
+									}
+
+								}
+								elseif ($missingBuffer) {
+									// missing
+									$missingBuffer->add($curr);
+
+								}
+							}
+
+						});
+
+					// flush callback buffers
+					if ($createdBuffer)
+						$createdBuffer->flush();
+					if ($modifiedBuffer)
+						$modifiedBuffer->flush();
+					if ($missingBuffer)
+						$missingBuffer->flush();
+
+				}
+			};
+
+			return [$buffer, $afterCallback];
+		}
+
+		/**
+		 * Performs the bulk import
+		 * @param callable $callback Callback which fills the passed buffer with records to import
+		 */
+		public function perform(callable $callback) {
+
+			[$buffer, $afterCallback] = $this->prepare();
+
 			// invoke user callback (which fills the buffer)
 			call_user_func($callback, $buffer);
 
-			// flush buffer
-			$buffer->flush();
-
-
-			// evaluate data changes
-			$evaluateCreated  = $this->createdCallback ? true : false;
-			$evaluateModified = $this->modifiedCallback ? true : false;
-			$evaluateMissing  = $this->missingCallback ? true : false;
-			if ($evaluateMissing || $evaluateCreated || $evaluateModified) {
-
-				// init fields to be returned to callbacks
-				$evFields = $this->callbackFields ?: [$modelInstance->getKeyName()];
-
-				// add batch id and mark fields to field list
-				$evFields[] = $batchIdField;
-				if ($evaluateModified) {
-					$evFields[] = $modifiedMarkField;
-				}
-				if ($evaluateCreated) {
-					$evFields[] = $createdMarkField;
-				}
-
-				// init callback buffers
-				$collectionResolver = function () {
-					return new Collection();
-				};
-				$createdBuffer  = $evaluateCreated ? new FlushingBuffer($this->callbackBufferSize, $this->createdCallback, $collectionResolver ) : null;
-				$modifiedBuffer = $evaluateModified ? new FlushingBuffer($this->callbackBufferSize, $this->modifiedCallback, $collectionResolver) : null;
-				$missingBuffer  = $evaluateMissing ? new FlushingBuffer($this->callbackBufferSize, $this->missingCallback, $collectionResolver) : null;
-
-
-				// query data changes
-				$this->compileTargetConditions($modelInstance->newQuery())
-					// when no missing callback set, we do not have to query the whole scope
-					// but only the records affected by this batch
-					->when(!$missingBuffer, function ($query) use ($batchId) {
-						/** @var Builder $query */
-						return $query->where($this->batchIdField, $batchId);
-					})
-					->select($evFields)
-					->chunk(500, function ($records) use ($batchId, $createdBuffer, $modifiedBuffer, $missingBuffer, $batchIdField, $createdMarkField, $modifiedMarkField) {
-
-						foreach ($records as $curr) {
-							if ($curr[$batchIdField] == $batchId) {
-
-								if ($createdBuffer && $curr[$createdMarkField] ?? false) {
-									// created
-									$createdBuffer->add($curr);
-								}
-								elseif ($modifiedBuffer && $curr[$modifiedMarkField]) {
-									// modified
-									$modifiedBuffer->add($curr);
-								}
-
-							}
-							elseif ($missingBuffer) {
-								// missing
-								$missingBuffer->add($curr);
-
-							}
-						}
-
-					});
-
-				// flush callback buffers
-				if ($createdBuffer)
-					$createdBuffer->flush();
-				if ($modifiedBuffer)
-					$modifiedBuffer->flush();
-				if ($missingBuffer)
-					$missingBuffer->flush();
-
-			}
-
+			$afterCallback();
 		}
 
 		/**
