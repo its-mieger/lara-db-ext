@@ -14,6 +14,7 @@
 
 	use Illuminate\Database\Eloquent\Model;
 	use Illuminate\Database\Query\Expression;
+	use InvalidArgumentException;
 
 	/**
 	 * Mass inserts for models
@@ -91,6 +92,108 @@
 		}
 
 		/**
+		 * Update rows using a join table
+		 * @param array $data The data in the join table
+		 * @param array|Expression[] $joinOn The join conditions. If not an expression, item is interpreted as column name
+		 * @param array|Expression[] $updateFields The fields to update. If not an expression, item is interpreted as column name
+		 * @param string $joinedTableName The joined table name
+		 * @return bool|int The number of affected records
+		 */
+		public static function updateJoined(array $data, array $joinOn = ['id'], array $updateFields = [], $joinedTableName = 'data') {
+			if (empty($data))
+				return false;
+			// Case where $data is not an array of arrays.
+			if (!isset($data[0]))
+				$data = [$data];
+
+			$bindings = [];
+
+			$columns = [];
+
+
+			// build join data
+			$joinData = [];
+			$isFirst = true;
+			foreach($data as $currRow) {
+
+				// remember columns
+				if ($isFirst)
+					$columns = array_keys($currRow);
+
+				$currFields = [];
+				foreach($currRow as $name => $value) {
+					if ($value instanceof Expression) {
+						$currFieldSql = "{$value}";
+					}
+					else {
+						$currFieldSql = '?';
+						$bindings[]   = $value;
+					}
+
+					$currFields[] = $currFieldSql . ($isFirst ? ' as ' . static::quoteIdentifier($name) : '');
+				}
+				$joinData[] = 'select ' . implode(', ', $currFields);
+
+				$isFirst = false;
+			}
+
+			// build join conditions
+			$whereColumns = [];
+			$joinWhere = [];
+			foreach ($joinOn as $column => $currCondition) {
+
+				// check if only expression passed
+				if (is_numeric($column) && ($currCondition instanceof Expression)) {
+					$joinWhere[] = "{$currCondition}";
+					continue;
+				}
+
+
+				$left = self::quoteIdentifier(static::table() . '.' . (is_numeric($column) ? $currCondition : $column));
+				if ($currCondition instanceof Expression) {
+					$right = "{$currCondition}";
+				}
+				else {
+					$right = self::quoteIdentifier($joinedTableName . '.' . $currCondition);
+					$whereColumns[] = $currCondition;
+				}
+
+				$joinWhere[] = "{$left} = {$right}";
+
+			}
+
+			// build update field list
+			if (empty($updateFields))
+				$updateFields = array_diff($columns, $whereColumns);
+			$updateFieldsSql = [];
+			foreach($updateFields as $column => $value) {
+
+				// check if only expression passed
+				if (is_numeric($column) && ($value instanceof Expression)) {
+					$updateFieldsSql[] = "{$value}";
+					continue;
+				}
+
+
+				$left = self::quoteIdentifier(static::table() . '.' . (is_numeric($column) ? $value : $column));
+				if ($value instanceof Expression) {
+					$right = "{$value}";
+				}
+				else {
+					$right          = self::quoteIdentifier($joinedTableName . '.' . $value);
+					$whereColumns[] = $value;
+				}
+
+				$updateFieldsSql[] = "{$left} = {$right}";
+			}
+
+
+			$sql = 'update ' . static::tableRaw() . ' join (' . implode(' union all ', $joinData) . ') ' . static::quoteIdentifier($joinedTableName) . ' on ' . implode(' and ', $joinWhere) . ' set ' . implode(', ', $updateFieldsSql);
+
+			return static::executeAffectingStatement($sql, $bindings);
+		}
+
+		/**
 		 * Builds the SQL for the given data
 		 * @param array $data The data. Will be not manipulated but using by-reference is faster for large arrays
 		 * @param array $bindings Returns the bindings for the query
@@ -131,9 +234,9 @@
 			$firstRow = reset($data);
 
 			if (empty($firstRow))
-				throw new \InvalidArgumentException('First data row must not be empty');
+				throw new InvalidArgumentException('First data row must not be empty');
 			if (!is_array($firstRow))
-				throw new \InvalidArgumentException('First data row is not an array');
+				throw new InvalidArgumentException('First data row is not an array');
 
 
 			return $firstRow;

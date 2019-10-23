@@ -12,6 +12,7 @@
 	use Illuminate\Database\MySqlConnection;
 	use Illuminate\Database\Query\Expression;
 	use Illuminate\Foundation\Testing\DatabaseTransactions;
+	use ItsMiegerLaraDbExtTest\Model\TestBulkImport;
 	use ItsMiegerLaraDbExtTest\Model\TestModelMassInsert;
 	use ItsMiegerLaraDbExtTest\Model\TestModelMassInsertMutated;
 	use ItsMiegerLaraDbExtTest\Unit\TestCase;
@@ -434,6 +435,202 @@
 
 			$ret = TestModelMassInsertMutated::where('name', $r1->name)->first();
 			$this->assertNull($ret);
+		}
+
+		public function testUpdateJoined() {
+
+			$r1 = factory(TestBulkImport::class)->create();
+			$r2 = factory(TestBulkImport::class)->create();
+			$r3 = factory(TestBulkImport::class)->create();
+
+
+			TestBulkImport::updateJoined(
+				[
+					['id' => $r1->id, 'a' => 'v1.1', 'b' => 'v1.2', 'u' => 'v1.3'],
+					['id' => $r2->id, 'a' => 'v2.1', 'b' => 'v2.2', 'u' => 'v2.3'],
+					['id' => $r3->id, 'a' => 'v3.1', 'b' => 'v3.2', 'u' => 'v3.3'],
+					['id' => 0, 'a' => 'v4.1', 'b' => 'v4.2', 'u' => 'v4.3'],
+				]
+			);
+
+
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r1->id, 'a' => 'v1.1', 'b' => 'v1.2', 'u' => 'v1.3']);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r2->id, 'a' => 'v2.1', 'b' => 'v2.2', 'u' => 'v2.3']);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r3->id, 'a' => 'v3.1', 'b' => 'v3.2', 'u' => 'v3.3']);
+			$this->assertDatabaseMissing(TestBulkImport::table(), ['id' => 0]);
+		}
+
+		public function testUpdateJoined_joinOnExpression() {
+
+			$r1 = factory(TestBulkImport::class)->create();
+			$r2 = factory(TestBulkImport::class)->create();
+			$r3 = factory(TestBulkImport::class)->create();
+
+
+			TestBulkImport::updateJoined(
+				[
+					['id' => $r1->id, 'a' => 'v1.1', 'b' => 'v1.2', 'u' => 'v1.3'],
+					['id' => $r2->id, 'a' => 'v2.1', 'b' => 'v2.2', 'u' => 'v2.3'],
+					['id' => $r3->id, 'a' => 'v3.1', 'b' => 'v3.2', 'u' => 'v3.3'],
+					['id' => 0, 'a' => 'v4.1', 'b' => 'v4.2', 'u' => 'v4.3'],
+				],
+				[
+					new Expression(TestBulkImport::table() . '.id = data.id')
+				]
+			);
+
+
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r1->id, 'a' => 'v1.1', 'b' => 'v1.2', 'u' => 'v1.3']);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r2->id, 'a' => 'v2.1', 'b' => 'v2.2', 'u' => 'v2.3']);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r3->id, 'a' => 'v3.1', 'b' => 'v3.2', 'u' => 'v3.3']);
+			$this->assertDatabaseMissing(TestBulkImport::table(), ['id' => 0]);
+		}
+
+		public function testUpdateJoined_joinOnColumnExpression() {
+
+			$r1 = factory(TestBulkImport::class)->create();
+			$r2 = factory(TestBulkImport::class)->create();
+			$r3 = factory(TestBulkImport::class)->create();
+
+
+			TestBulkImport::updateJoined(
+				[
+					['id' => $r1->id + 1, 'a' => 'v1.1', 'b' => 'v1.2', 'u' => 'v1.3'],
+					['id' => $r2->id + 1, 'a' => 'v2.1', 'b' => 'v2.2', 'u' => 'v2.3'],
+					['id' => $r3->id + 1, 'a' => 'v3.1', 'b' => 'v3.2', 'u' => 'v3.3'],
+					['id' => 0, 'a' => 'v4.1', 'b' => 'v4.2', 'u' => 'v4.3'],
+				],
+				[
+					'id' => new Expression('data.id - 1')
+				],
+				[
+					'a',
+					'b',
+					'u',
+				]
+			);
+
+
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r1->id, 'a' => 'v1.1', 'b' => 'v1.2', 'u' => 'v1.3']);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r2->id, 'a' => 'v2.1', 'b' => 'v2.2', 'u' => 'v2.3']);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r3->id, 'a' => 'v3.1', 'b' => 'v3.2', 'u' => 'v3.3']);
+			$this->assertDatabaseMissing(TestBulkImport::table(), ['id' => 0]);
+		}
+
+		public function testUpdateJoined_joinOnDifferentColumn() {
+
+			$r1 = factory(TestBulkImport::class)->create();
+			$r2 = factory(TestBulkImport::class)->create();
+			$r3 = factory(TestBulkImport::class)->create();
+
+
+			TestBulkImport::updateJoined(
+				[
+					['id2' => $r1->id, 'a' => 'v1.1', 'b' => 'v1.2', 'u' => 'v1.3'],
+					['id2' => $r2->id, 'a' => 'v2.1', 'b' => 'v2.2', 'u' => 'v2.3'],
+					['id2' => $r3->id, 'a' => 'v3.1', 'b' => 'v3.2', 'u' => 'v3.3'],
+					['id2' => 0, 'a' => 'v4.1', 'b' => 'v4.2', 'u' => 'v4.3'],
+				],
+				[
+					'id' => 'id2',
+				]
+			);
+
+
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r1->id, 'a' => 'v1.1', 'b' => 'v1.2', 'u' => 'v1.3']);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r2->id, 'a' => 'v2.1', 'b' => 'v2.2', 'u' => 'v2.3']);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r3->id, 'a' => 'v3.1', 'b' => 'v3.2', 'u' => 'v3.3']);
+			$this->assertDatabaseMissing(TestBulkImport::table(), ['id' => 0]);
+		}
+
+		public function testUpdateJoined_updateFieldsOnlySomeColumns() {
+
+			$r1 = factory(TestBulkImport::class)->create();
+			$r2 = factory(TestBulkImport::class)->create();
+			$r3 = factory(TestBulkImport::class)->create();
+
+
+			TestBulkImport::updateJoined(
+				[
+					['id' => $r1->id, 'a' => 'v1.1', 'b' => 'v1.2', 'u' => 'v1.3'],
+					['id' => $r2->id, 'a' => 'v2.1', 'b' => 'v2.2', 'u' => 'v2.3'],
+					['id' => $r3->id, 'a' => 'v3.1', 'b' => 'v3.2', 'u' => 'v3.3'],
+					['id' => 0, 'a' => 'v4.1', 'b' => 'v4.2', 'u' => 'v4.3'],
+				],
+				[
+					'id',
+				],
+				[
+					'a',
+					'b',
+				]
+			);
+
+
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r1->id, 'a' => 'v1.1', 'b' => 'v1.2', 'u' => $r1->u]);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r2->id, 'a' => 'v2.1', 'b' => 'v2.2', 'u' => $r2->u]);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r3->id, 'a' => 'v3.1', 'b' => 'v3.2', 'u' => $r3->u]);
+			$this->assertDatabaseMissing(TestBulkImport::table(), ['id' => 0]);
+		}
+
+		public function testUpdateJoined_updateFieldsExpression() {
+
+			$r1 = factory(TestBulkImport::class)->create();
+			$r2 = factory(TestBulkImport::class)->create();
+			$r3 = factory(TestBulkImport::class)->create();
+
+
+			TestBulkImport::updateJoined(
+				[
+					['id' => $r1->id, 'a' => 'v1.1', 'b' => 'v1.2', 'u' => 'v1.3'],
+					['id' => $r2->id, 'a' => 'v2.1', 'b' => 'v2.2', 'u' => 'v2.3'],
+					['id' => $r3->id, 'a' => 'v3.1', 'b' => 'v3.2', 'u' => 'v3.3'],
+					['id' => 0, 'a' => 'v4.1', 'b' => 'v4.2', 'u' => 'v4.3'],
+				],
+				[
+					'id',
+				],
+				[
+					new Expression(TestBulkImport::tableRaw() . '.b = concat(data.b, ' . TestBulkImport::tableRaw() . '.id)')
+				]
+			);
+
+
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r1->id, 'a' => $r1->a, 'b' => 'v1.2' . $r1->id, 'u' => $r1->u]);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r2->id, 'a' => $r2->a, 'b' => 'v2.2' . $r2->id, 'u' => $r2->u]);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r3->id, 'a' => $r3->a, 'b' => 'v3.2' . $r3->id, 'u' => $r3->u]);
+			$this->assertDatabaseMissing(TestBulkImport::table(), ['id' => 0]);
+		}
+
+		public function testUpdateJoined_updateFieldsColumnWithExpression() {
+
+			$r1 = factory(TestBulkImport::class)->create();
+			$r2 = factory(TestBulkImport::class)->create();
+			$r3 = factory(TestBulkImport::class)->create();
+
+
+			TestBulkImport::updateJoined(
+				[
+					['id' => $r1->id, 'a' => 'v1.1', 'b' => 'v1.2', 'u' => 'v1.3'],
+					['id' => $r2->id, 'a' => 'v2.1', 'b' => 'v2.2', 'u' => 'v2.3'],
+					['id' => $r3->id, 'a' => 'v3.1', 'b' => 'v3.2', 'u' => 'v3.3'],
+					['id' => 0, 'a' => 'v4.1', 'b' => 'v4.2', 'u' => 'v4.3'],
+				],
+				[
+					'id',
+				],
+				[
+					'a',
+					'b' => new Expression('concat(data.b, ' . TestBulkImport::tableRaw() . '.id)'),
+					'u'
+				]
+			);
+
+
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r1->id, 'a' => 'v1.1', 'b' => 'v1.2' . $r1->id, 'u' => 'v1.3']);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r2->id, 'a' => 'v2.1', 'b' => 'v2.2' . $r2->id, 'u' => 'v2.3']);
+			$this->assertDatabaseHas(TestBulkImport::table(), ['id' => $r3->id, 'a' => 'v3.1', 'b' => 'v3.2' . $r3->id, 'u' => 'v3.3']);
+			$this->assertDatabaseMissing(TestBulkImport::table(), ['id' => 0]);
 		}
 
 	}
