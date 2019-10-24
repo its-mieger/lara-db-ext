@@ -1,21 +1,13 @@
 <?php
-	/** @noinspection SqlDialectInspection */
-	/** @noinspection SqlNoDataSourceInspection */
-
-	/**
-	 * Created by PhpStorm.
-	 * User: chris
-	 * Date: 28.11.18
-	 * Time: 14:11
-	 */
 
 	namespace ItsMiegerLaraDbExtTest\Cases\Unit\Query;
-
 
 	use Illuminate\Database\Events\StatementPrepared;
 	use Illuminate\Events\Dispatcher;
 	use stdClass;
 	use Mockery as m;
+	use RuntimeException;
+	use BadMethodCallException;
 	use InvalidArgumentException;
 	use ItsMieger\LaraDbExt\Query\Builder;
 	use Illuminate\Database\ConnectionInterface;
@@ -31,19 +23,17 @@
 	use Illuminate\Pagination\AbstractPaginator as Paginator;
 	use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 
+
 	use ItsMiegerLaraDbExtTest\Unit\TestCase;
 
 	/**
-	 * This test class is copied from Laravel's DatabaseQueryBuilderTest (v5.7) to ensure core functionality is not broken by this extension
+	 * This test class is copied from Laravel's DatabaseQueryBuilderTest (v5.8) to ensure core functionality is not broken by this extension
 	 * @package ItsMiegerLaraDbExtTest\Unit\Cases\Query
 	 */
-	class LaravelsBuilder57Test extends TestCase
+	class LaravelsBuilder58Test extends TestCase
 	{
-
-		public function tearDown() {
+		protected function tearDown(): void {
 			m::close();
-
-			parent::tearDown();
 		}
 
 		public function testBasicSelect() {
@@ -69,11 +59,21 @@
 
 				return $fn(func_get_args());
 			});
+			$builder->getConnection()->shouldReceive('cursor')->once()->andReturnUsing(function ($sql) use ($builder) {
+				$this->assertEquals('select "baz" from "users"', $sql);
+
+				$fn = $this->connCursorReturn($builder, []);
+
+				return $fn(func_get_args());
+			});
 
 			$builder->from('users')->get();
 			$this->assertNull($builder->columns);
 
 			$builder->from('users')->get(['foo', 'bar']);
+			$this->assertNull($builder->columns);
+
+			$builder->from('users')->get('baz');
 			$this->assertNull($builder->columns);
 
 			$this->assertEquals('select * from "users"', $builder->toSql());
@@ -326,7 +326,7 @@
 			$this->assertEquals('select * from `users` where `id` = ? or month(`created_at`) = ?', $builder->toSql());
 
 			$builder = $this->getMySqlBuilder();
-			$builder->select('*')->from('users')->where('id', 1)->orWhereyear('created_at', 1);
+			$builder->select('*')->from('users')->where('id', 1)->orWhereYear('created_at', 1);
 			$this->assertEquals('select * from `users` where `id` = ? or year(`created_at`) = ?', $builder->toSql());
 		}
 
@@ -334,6 +334,18 @@
 			$builder = $this->getBuilder();
 			$builder->select('*')->from('users')->whereDate('created_at', new Raw('NOW()'))->where('admin', true);
 			$this->assertEquals([true], $builder->getBindings());
+
+			$builder = $this->getBuilder();
+			$builder->select('*')->from('users')->whereDay('created_at', new Raw('NOW()'));
+			$this->assertEquals([], $builder->getBindings());
+
+			$builder = $this->getBuilder();
+			$builder->select('*')->from('users')->whereMonth('created_at', new Raw('NOW()'));
+			$this->assertEquals([], $builder->getBindings());
+
+			$builder = $this->getBuilder();
+			$builder->select('*')->from('users')->whereYear('created_at', new Raw('NOW()'));
+			$this->assertEquals([], $builder->getBindings());
 		}
 
 		public function testWhereDateMySql() {
@@ -735,6 +747,13 @@
 			$this->assertEquals($expectedSql, $builder->toSql());
 			$this->assertEquals([0 => 10, 1 => 1, 2 => 11, 3 => 2], $builder->getBindings());
 
+			$builder     = $this->getPostgresBuilder();
+			$expectedSql = '(select "name" from "users" where "id" = ?) union (select "name" from "users" where "id" = ?)';
+			$builder->select('name')->from('users')->where('id', '=', 1);
+			$builder->union($this->getPostgresBuilder()->select('name')->from('users')->where('id', '=', 2));
+			$this->assertEquals($expectedSql, $builder->toSql());
+			$this->assertEquals([0 => 1, 1 => 2], $builder->getBindings());
+
 			$builder     = $this->getSQLiteBuilder();
 			$expectedSql = 'select * from (select "name" from "users" where "id" = ?) union select * from (select "name" from "users" where "id" = ?)';
 			$builder->select('name')->from('users')->where('id', '=', 1);
@@ -748,6 +767,13 @@
 			$builder->select('*')->from('users')->where('id', '=', 1);
 			$builder->unionAll($this->getBuilder()->select('*')->from('users')->where('id', '=', 2));
 			$this->assertEquals('select * from "users" where "id" = ? union all select * from "users" where "id" = ?', $builder->toSql());
+			$this->assertEquals([0 => 1, 1 => 2], $builder->getBindings());
+
+			$expectedSql = '(select * from "users" where "id" = ?) union all (select * from "users" where "id" = ?)';
+			$builder     = $this->getPostgresBuilder();
+			$builder->select('*')->from('users')->where('id', '=', 1);
+			$builder->unionAll($this->getBuilder()->select('*')->from('users')->where('id', '=', 2));
+			$this->assertEquals($expectedSql, $builder->toSql());
 			$this->assertEquals([0 => 1, 1 => 2], $builder->getBindings());
 		}
 
@@ -784,6 +810,20 @@
 			$builder->union($this->getBuilder()->select('*')->from('dogs'));
 			$builder->skip(5)->take(10);
 			$this->assertEquals('select * from "users" union select * from "dogs" limit 10 offset 5', $builder->toSql());
+
+			$expectedSql = '(select * from "users") union (select * from "dogs") limit 10 offset 5';
+			$builder     = $this->getPostgresBuilder();
+			$builder->select('*')->from('users');
+			$builder->union($this->getBuilder()->select('*')->from('dogs'));
+			$builder->skip(5)->take(10);
+			$this->assertEquals($expectedSql, $builder->toSql());
+
+			$expectedSql = '(select * from "users" limit 11) union (select * from "dogs" limit 22) limit 10 offset 5';
+			$builder     = $this->getPostgresBuilder();
+			$builder->select('*')->from('users')->limit(11);
+			$builder->union($this->getBuilder()->select('*')->from('dogs')->limit(22));
+			$builder->skip(5)->take(10);
+			$this->assertEquals($expectedSql, $builder->toSql());
 		}
 
 		public function testUnionWithJoin() {
@@ -876,6 +916,18 @@
 			$this->assertEquals([0 => 1], $builder->getBindings());
 		}
 
+		public function testArrayWhereNulls() {
+			$builder = $this->getBuilder();
+			$builder->select('*')->from('users')->whereNull(['id', 'expires_at']);
+			$this->assertEquals('select * from "users" where "id" is null and "expires_at" is null', $builder->toSql());
+			$this->assertEquals([], $builder->getBindings());
+
+			$builder = $this->getBuilder();
+			$builder->select('*')->from('users')->where('id', '=', 1)->orWhereNull(['id', 'expires_at']);
+			$this->assertEquals('select * from "users" where "id" = ? or "id" is null or "expires_at" is null', $builder->toSql());
+			$this->assertEquals([0 => 1], $builder->getBindings());
+		}
+
 		public function testBasicWhereNotNulls() {
 			$builder = $this->getBuilder();
 			$builder->select('*')->from('users')->whereNotNull('id');
@@ -885,6 +937,18 @@
 			$builder = $this->getBuilder();
 			$builder->select('*')->from('users')->where('id', '>', 1)->orWhereNotNull('id');
 			$this->assertEquals('select * from "users" where "id" > ? or "id" is not null', $builder->toSql());
+			$this->assertEquals([0 => 1], $builder->getBindings());
+		}
+
+		public function testArrayWhereNotNulls() {
+			$builder = $this->getBuilder();
+			$builder->select('*')->from('users')->whereNotNull(['id', 'expires_at']);
+			$this->assertEquals('select * from "users" where "id" is not null and "expires_at" is not null', $builder->toSql());
+			$this->assertEquals([], $builder->getBindings());
+
+			$builder = $this->getBuilder();
+			$builder->select('*')->from('users')->where('id', '>', 1)->orWhereNotNull(['id', 'expires_at']);
+			$this->assertEquals('select * from "users" where "id" > ? or "id" is not null or "expires_at" is not null', $builder->toSql());
 			$this->assertEquals([0 => 1], $builder->getBindings());
 		}
 
@@ -927,6 +991,13 @@
 			$this->assertEquals('select * from "users" order by "name" desc', $builder->toSql());
 		}
 
+		public function testOrderByInvalidDirectionParam() {
+			$this->expectException(InvalidArgumentException::class);
+
+			$builder = $this->getBuilder();
+			$builder->select('*')->from('users')->orderBy('age', 'asec');
+		}
+
 		public function testHavings() {
 			$builder = $this->getBuilder();
 			$builder->select('*')->from('users')->having('email', '>', 1);
@@ -953,6 +1024,10 @@
 			$builder = $this->getBuilder();
 			$builder->select(['category', new Raw('count(*) as "total"')])->from('item')->where('department', '=', 'popular')->groupBy('category')->having('total', '>', 3);
 			$this->assertEquals('select "category", count(*) as "total" from "item" where "department" = ? group by "category" having "total" > ?', $builder->toSql());
+
+			$builder = $this->getBuilder();
+			$builder->select('*')->from('users')->havingBetween('last_login_date', ['2018-11-16', '2018-12-16']);
+			$this->assertEquals('select * from "users" having "last_login_date" between ? and ?', $builder->toSql());
 		}
 
 		public function testHavingShortcut() {
@@ -964,7 +1039,7 @@
 		public function testHavingFollowedBySelectGet() {
 			$builder = $this->getBuilder();
 			$query   = 'select "category", count(*) as "total" from "item" where "department" = ? group by "category" having "total" > ?';
-			$builder->getConnection()->shouldReceive('cursor')->once()->with($query, ['popular', 3], true)->andReturnUsing($this->connCursorReturn($builder, [['category' => 'rock', 'total' => 5]]));
+			$builder->getConnection()->shouldReceive('cursor')->once()->with($query, ['popular', 3], true)->andReturn([['category' => 'rock', 'total' => 5]])->andReturnUsing($this->connCursorReturn($builder, [['category' => 'rock', 'total' => 5]]));
 			$builder->getProcessor()->shouldReceive('processSelect')->andReturnUsing(function ($builder, $results) {
 				return $results;
 			});
@@ -975,7 +1050,7 @@
 			// Using \Raw value
 			$builder = $this->getBuilder();
 			$query   = 'select "category", count(*) as "total" from "item" where "department" = ? group by "category" having "total" > 3';
-			$builder->getConnection()->shouldReceive('cursor')->once()->with($query, ['popular'], true)->andReturnUsing($this->connCursorReturn($builder, [['category' => 'rock', 'total' => 5]]));
+			$builder->getConnection()->shouldReceive('cursor')->once()->with($query, ['popular'], true)->andReturn([['category' => 'rock', 'total' => 5]])->andReturnUsing($this->connCursorReturn($builder, [['category' => 'rock', 'total' => 5]]));
 			$builder->getProcessor()->shouldReceive('processSelect')->andReturnUsing(function ($builder, $results) {
 				return $results;
 			});
@@ -992,6 +1067,10 @@
 			$builder = $this->getBuilder();
 			$builder->select('*')->from('users')->having('baz', '=', 1)->orHavingRaw('user_foo < user_bar');
 			$this->assertEquals('select * from "users" having "baz" = ? or user_foo < user_bar', $builder->toSql());
+
+			$builder = $this->getBuilder();
+			$builder->select('*')->from('users')->havingBetween('last_login_date', ['2018-11-16', '2018-12-16'])->orHavingRaw('user_foo < user_bar');
+			$this->assertEquals('select * from "users" having "last_login_date" between ? and ? or user_foo < user_bar', $builder->toSql());
 		}
 
 		public function testLimitsAndOffsets() {
@@ -1440,6 +1519,13 @@
 			$this->assertEquals(['foo', 1, 'bar'], $builder->getRawBindings()['join']);
 		}
 
+		public function testJoinSubWithPrefix() {
+			$builder = $this->getBuilder();
+			$builder->getGrammar()->setTablePrefix('prefix_');
+			$builder->from('users')->joinSub('select * from "contacts"', 'sub', 'users.id', '=', 'sub.id');
+			$this->assertEquals('select * from "prefix_users" inner join (select * from "contacts") as "prefix_sub" on "prefix_users"."id" = "prefix_sub"."id"', $builder->toSql());
+		}
+
 		public function testLeftJoinSub() {
 			$builder = $this->getBuilder();
 			$builder->from('users')->leftJoinSub($this->getBuilder()->from('contacts'), 'sub', 'users.id', '=', 'sub.id');
@@ -1658,11 +1744,53 @@
 			$this->assertTrue($result);
 		}
 
-		public function testSQLiteMultipleInserts() {
-			$builder = $this->getSQLiteBuilder();
-			$builder->getConnection()->shouldReceive('insert')->once()->with('insert into "users" ("email", "name") select ? as "email", ? as "name" union all select ? as "email", ? as "name"', ['foo', 'taylor', 'bar', 'dayle'])->andReturn(true);
-			$result = $builder->from('users')->insert([['email' => 'foo', 'name' => 'taylor'], ['email' => 'bar', 'name' => 'dayle']]);
+		public function testInsertUsingMethod() {
+			$builder = $this->getBuilder();
+			$builder->getConnection()->shouldReceive('insert')->once()->with('insert into "table1" ("foo") select "bar" from "table2" where "foreign_id" = ?', [5])->andReturn(true);
+
+			$result = $builder->from('table1')->insertUsing(
+				['foo'],
+				function (Builder $query) {
+					$query->select(['bar'])->from('table2')->where('foreign_id', '=', 5);
+				}
+			);
+
 			$this->assertTrue($result);
+		}
+
+		public function testInsertOrIgnoreMethod() {
+			$this->expectException(RuntimeException::class);
+			$this->expectExceptionMessage('does not support');
+			$builder = $this->getBuilder();
+			$builder->from('users')->insertOrIgnore(['email' => 'foo']);
+		}
+
+		public function testMySqlInsertOrIgnoreMethod() {
+			$builder = $this->getMySqlBuilder();
+			$builder->getConnection()->shouldReceive('affectingStatement')->once()->with('insert ignore into `users` (`email`) values (?)', ['foo'])->andReturn(1);
+			$result = $builder->from('users')->insertOrIgnore(['email' => 'foo']);
+			$this->assertEquals(1, $result);
+		}
+
+		public function testPostgresInsertOrIgnoreMethod() {
+			$builder = $this->getPostgresBuilder();
+			$builder->getConnection()->shouldReceive('affectingStatement')->once()->with('insert into "users" ("email") values (?) on conflict do nothing', ['foo'])->andReturn(1);
+			$result = $builder->from('users')->insertOrIgnore(['email' => 'foo']);
+			$this->assertEquals(1, $result);
+		}
+
+		public function testSQLiteInsertOrIgnoreMethod() {
+			$builder = $this->getSQLiteBuilder();
+			$builder->getConnection()->shouldReceive('affectingStatement')->once()->with('insert or ignore into "users" ("email") values (?)', ['foo'])->andReturn(1);
+			$result = $builder->from('users')->insertOrIgnore(['email' => 'foo']);
+			$this->assertEquals(1, $result);
+		}
+
+		public function testSqlServerInsertOrIgnoreMethod() {
+			$this->expectException(RuntimeException::class);
+			$this->expectExceptionMessage('does not support');
+			$builder = $this->getSqlServerBuilder();
+			$builder->from('users')->insertOrIgnore(['email' => 'foo']);
 		}
 
 		public function testInsertGetIdMethod() {
@@ -1768,6 +1896,11 @@
 					->where('users.id', '=', 1);
 			})->update(['email' => 'foo', 'name' => 'bar']);
 			$this->assertEquals(1, $result);
+
+			$builder = $this->getSQLiteBuilder();
+			$builder->getConnection()->shouldReceive('update')->once()->with('update "users" as "u" set "email" = ?, "name" = ? where "rowid" in (select "u"."rowid" from "users" as "u" inner join "orders" as "o" on "u"."id" = "o"."user_id")', ['foo', 'bar'])->andReturn(1);
+			$result = $builder->from('users as u')->join('orders as o', 'u.id', '=', 'o.user_id')->update(['email' => 'foo', 'name' => 'bar']);
+			$this->assertEquals(1, $result);
 		}
 
 		public function testUpdateMethodWithJoinsAndAliasesOnSqlServer() {
@@ -1780,7 +1913,17 @@
 		public function testUpdateMethodWithoutJoinsOnPostgres() {
 			$builder = $this->getPostgresBuilder();
 			$builder->getConnection()->shouldReceive('update')->once()->with('update "users" set "email" = ?, "name" = ? where "id" = ?', ['foo', 'bar', 1])->andReturn(1);
-			$result = $builder->from('users')->where('id', '=', 1)->update(['email' => 'foo', 'name' => 'bar']);
+			$result = $builder->from('users')->where('id', '=', 1)->update(['users.email' => 'foo', 'name' => 'bar']);
+			$this->assertEquals(1, $result);
+
+			$builder = $this->getPostgresBuilder();
+			$builder->getConnection()->shouldReceive('update')->once()->with('update "users" set "email" = ?, "name" = ? where "id" = ?', ['foo', 'bar', 1])->andReturn(1);
+			$result = $builder->from('users')->where('id', '=', 1)->selectRaw('?', ['ignore'])->update(['users.email' => 'foo', 'name' => 'bar']);
+			$this->assertEquals(1, $result);
+
+			$builder = $this->getPostgresBuilder();
+			$builder->getConnection()->shouldReceive('update')->once()->with('update "users"."users" set "email" = ?, "name" = ? where "id" = ?', ['foo', 'bar', 1])->andReturn(1);
+			$result = $builder->from('users.users')->where('id', '=', 1)->selectRaw('?', ['ignore'])->update(['users.users.email' => 'foo', 'name' => 'bar']);
 			$this->assertEquals(1, $result);
 		}
 
@@ -1796,6 +1939,16 @@
 				$join->on('users.id', '=', 'orders.user_id')
 					->where('users.id', '=', 1);
 			})->update(['email' => 'foo', 'name' => 'bar']);
+			$this->assertEquals(1, $result);
+
+			$builder = $this->getPostgresBuilder();
+			$builder->getConnection()->shouldReceive('update')->once()->with('update "users" set "email" = ?, "name" = ? from "orders" where "name" = ? and "users"."id" = "orders"."user_id" and "users"."id" = ?', ['foo', 'bar', 'baz', 1])->andReturn(1);
+			$result = $builder->from('users')
+				->join('orders', function ($join) {
+					$join->on('users.id', '=', 'orders.user_id')
+						->where('users.id', '=', 1);
+				})->where('name', 'baz')
+				->update(['email' => 'foo', 'name' => 'bar']);
 			$this->assertEquals(1, $result);
 		}
 
@@ -1833,6 +1986,20 @@
 			$this->assertTrue($builder->updateOrInsert(['email' => 'foo'], ['name' => 'bar']));
 		}
 
+		public function testUpdateOrInsertMethodWorksWithEmptyUpdateValues() {
+			$builder = m::spy(Builder::class . '[where,exists,update]', [
+				m::mock(ConnectionInterface::class),
+				new Grammar,
+				m::mock(Processor::class),
+			]);
+
+			$builder->shouldReceive('where')->once()->with(['email' => 'foo'])->andReturn(m::self());
+			$builder->shouldReceive('exists')->once()->andReturn(true);
+
+			$this->assertTrue($builder->updateOrInsert(['email' => 'foo']));
+			$builder->shouldNotHaveReceived('update');
+		}
+
 		public function testDeleteMethod() {
 			$builder = $this->getBuilder();
 			$builder->getConnection()->shouldReceive('delete')->once()->with('delete from "users" where "email" = ?', ['foo'])->andReturn(1);
@@ -1842,6 +2009,11 @@
 			$builder = $this->getBuilder();
 			$builder->getConnection()->shouldReceive('delete')->once()->with('delete from "users" where "users"."id" = ?', [1])->andReturn(1);
 			$result = $builder->from('users')->delete(1);
+			$this->assertEquals(1, $result);
+
+			$builder = $this->getBuilder();
+			$builder->getConnection()->shouldReceive('delete')->once()->with('delete from "users" where "users"."id" = ?', [1])->andReturn(1);
+			$result = $builder->from('users')->selectRaw('?', ['ignore'])->delete(1);
 			$this->assertEquals(1, $result);
 
 			$builder = $this->getSqliteBuilder();
@@ -1864,6 +2036,11 @@
 			$builder = $this->getSqliteBuilder();
 			$builder->getConnection()->shouldReceive('delete')->once()->with('delete from "users" where "rowid" in (select "users"."rowid" from "users" inner join "contacts" on "users"."id" = "contacts"."id" where "users"."email" = ? order by "users"."id" asc limit 1)', ['foo'])->andReturn(1);
 			$result = $builder->from('users')->join('contacts', 'users.id', '=', 'contacts.id')->where('users.email', '=', 'foo')->orderBy('users.id')->limit(1)->delete();
+			$this->assertEquals(1, $result);
+
+			$builder = $this->getSqliteBuilder();
+			$builder->getConnection()->shouldReceive('delete')->once()->with('delete from "users" as "u" where "rowid" in (select "u"."rowid" from "users" as "u" inner join "contacts" as "c" on "u"."id" = "c"."id")', [])->andReturn(1);
+			$result = $builder->from('users as u')->join('contacts as c', 'u.id', '=', 'c.id')->delete();
 			$this->assertEquals(1, $result);
 
 			$builder = $this->getMySqlBuilder();
@@ -1909,6 +2086,21 @@
 			$builder = $this->getPostgresBuilder();
 			$builder->getConnection()->shouldReceive('delete')->once()->with('delete from "users" USING "contacts" where "users"."id" = ? and "users"."id" = "contacts"."id"', [1])->andReturn(1);
 			$result = $builder->from('users')->join('contacts', 'users.id', '=', 'contacts.id')->orderBy('id')->take(1)->delete(1);
+			$this->assertEquals(1, $result);
+
+			$builder = $this->getPostgresBuilder();
+			$builder->getConnection()->shouldReceive('delete')->once()->with('delete from "users" USING "contacts" where "name" = ? and "users"."id" = "contacts"."user_id" and "users"."id" = ?', ['baz', 1])->andReturn(1);
+			$result = $builder->from('users')
+				->join('contacts', function ($join) {
+					$join->on('users.id', '=', 'contacts.user_id')
+						->where('users.id', '=', 1);
+				})->where('name', 'baz')
+				->delete();
+			$this->assertEquals(1, $result);
+
+			$builder = $this->getPostgresBuilder();
+			$builder->getConnection()->shouldReceive('delete')->once()->with('delete from "users" USING "contacts" where "users"."id" = "contacts"."id"', [])->andReturn(1);
+			$result = $builder->from('users')->join('contacts', 'users.id', '=', 'contacts.id')->delete();
 			$this->assertEquals(1, $result);
 		}
 
@@ -2013,7 +2205,7 @@
 			$builder = $this->getPostgresBuilder();
 			$builder->getConnection()->shouldReceive('update')
 				->with('update "users" set "options" = jsonb_set("options"::jsonb, \'{"name","first_name"}\', ?)', ['"John"']);
-			$builder->from('users')->update(['options->name->first_name' => 'John']);
+			$builder->from('users')->update(['users.options->name->first_name' => 'John']);
 
 			$builder = $this->getPostgresBuilder();
 			$builder->getConnection()->shouldReceive('update')
@@ -2024,7 +2216,7 @@
 		public function testMySqlWrappingJsonWithString() {
 			$builder = $this->getMySqlBuilder();
 			$builder->select('*')->from('users')->where('items->sku', '=', 'foo-bar');
-			$this->assertEquals('select * from `users` where `items`->\'$."sku"\' = ?', $builder->toSql());
+			$this->assertEquals('select * from `users` where json_unquote(json_extract(`items`, \'$."sku"\')) = ?', $builder->toSql());
 			$this->assertCount(1, $builder->getRawBindings()['where']);
 			$this->assertEquals('foo-bar', $builder->getRawBindings()['where'][0]);
 		}
@@ -2032,33 +2224,51 @@
 		public function testMySqlWrappingJsonWithInteger() {
 			$builder = $this->getMySqlBuilder();
 			$builder->select('*')->from('users')->where('items->price', '=', 1);
-			$this->assertEquals('select * from `users` where `items`->\'$."price"\' = ?', $builder->toSql());
+			$this->assertEquals('select * from `users` where json_unquote(json_extract(`items`, \'$."price"\')) = ?', $builder->toSql());
 		}
 
 		public function testMySqlWrappingJsonWithDouble() {
 			$builder = $this->getMySqlBuilder();
 			$builder->select('*')->from('users')->where('items->price', '=', 1.5);
-			$this->assertEquals('select * from `users` where `items`->\'$."price"\' = ?', $builder->toSql());
+			$this->assertEquals('select * from `users` where json_unquote(json_extract(`items`, \'$."price"\')) = ?', $builder->toSql());
 		}
 
 		public function testMySqlWrappingJsonWithBoolean() {
 			$builder = $this->getMySqlBuilder();
 			$builder->select('*')->from('users')->where('items->available', '=', true);
-			$this->assertEquals('select * from `users` where `items`->\'$."available"\' = true', $builder->toSql());
+			$this->assertEquals('select * from `users` where json_extract(`items`, \'$."available"\') = true', $builder->toSql());
+
+			$builder = $this->getMySqlBuilder();
+			$builder->select('*')->from('users')->where(new Raw("items->'$.available'"), '=', true);
+			$this->assertEquals("select * from `users` where items->'$.available' = true", $builder->toSql());
 		}
 
 		public function testMySqlWrappingJsonWithBooleanAndIntegerThatLooksLikeOne() {
 			$builder = $this->getMySqlBuilder();
 			$builder->select('*')->from('users')->where('items->available', '=', true)->where('items->active', '=', false)->where('items->number_available', '=', 0);
-			$this->assertEquals('select * from `users` where `items`->\'$."available"\' = true and `items`->\'$."active"\' = false and `items`->\'$."number_available"\' = ?', $builder->toSql());
+			$this->assertEquals('select * from `users` where json_extract(`items`, \'$."available"\') = true and json_extract(`items`, \'$."active"\') = false and json_unquote(json_extract(`items`, \'$."number_available"\')) = ?', $builder->toSql());
 		}
 
-		public function testMySqlWrappingJsonWithoutQuote() {
+		public function testJsonPathEscaping() {
+			$expectedWithJsonEscaped = <<<SQL
+select json_unquote(json_extract(`json`, '$."\'))#"'))
+SQL;
+
 			$builder = $this->getMySqlBuilder();
-			$builder->select('*')->from('users')->where('items->>sku', '=', 'foo-bar');
-			$this->assertEquals('select * from `users` where `items`->>\'$."sku"\' = ?', $builder->toSql());
-			$this->assertCount(1, $builder->getRawBindings()['where']);
-			$this->assertEquals('foo-bar', $builder->getRawBindings()['where'][0]);
+			$builder->select("json->'))#");
+			$this->assertEquals($expectedWithJsonEscaped, $builder->toSql());
+
+			$builder = $this->getMySqlBuilder();
+			$builder->select("json->\'))#");
+			$this->assertEquals($expectedWithJsonEscaped, $builder->toSql());
+
+			$builder = $this->getMySqlBuilder();
+			$builder->select("json->\\'))#");
+			$this->assertEquals($expectedWithJsonEscaped, $builder->toSql());
+
+			$builder = $this->getMySqlBuilder();
+			$builder->select("json->\\\'))#");
+			$this->assertEquals($expectedWithJsonEscaped, $builder->toSql());
 		}
 
 		public function testMySqlWrappingJson() {
@@ -2068,15 +2278,15 @@
 
 			$builder = $this->getMySqlBuilder();
 			$builder->select('items->price')->from('users')->where('users.items->price', '=', 1)->orderBy('items->price');
-			$this->assertEquals('select `items`->\'$."price"\' from `users` where `users`.`items`->\'$."price"\' = ? order by `items`->\'$."price"\' asc', $builder->toSql());
+			$this->assertEquals('select json_unquote(json_extract(`items`, \'$."price"\')) from `users` where json_unquote(json_extract(`users`.`items`, \'$."price"\')) = ? order by json_unquote(json_extract(`items`, \'$."price"\')) asc', $builder->toSql());
 
 			$builder = $this->getMySqlBuilder();
 			$builder->select('*')->from('users')->where('items->price->in_usd', '=', 1);
-			$this->assertEquals('select * from `users` where `items`->\'$."price"."in_usd"\' = ?', $builder->toSql());
+			$this->assertEquals('select * from `users` where json_unquote(json_extract(`items`, \'$."price"."in_usd"\')) = ?', $builder->toSql());
 
 			$builder = $this->getMySqlBuilder();
 			$builder->select('*')->from('users')->where('items->price->in_usd', '=', 1)->where('items->age', '=', 2);
-			$this->assertEquals('select * from `users` where `items`->\'$."price"."in_usd"\' = ? and `items`->\'$."age"\' = ?', $builder->toSql());
+			$this->assertEquals('select * from `users` where json_unquote(json_extract(`items`, \'$."price"."in_usd"\')) = ? and json_unquote(json_extract(`items`, \'$."age"\')) = ?', $builder->toSql());
 		}
 
 		public function testPostgresWrappingJson() {
@@ -2091,6 +2301,10 @@
 			$builder = $this->getPostgresBuilder();
 			$builder->select('*')->from('users')->where('items->price->in_usd', '=', 1)->where('items->age', '=', 2);
 			$this->assertEquals('select * from "users" where "items"->\'price\'->>\'in_usd\' = ? and "items"->>\'age\' = ?', $builder->toSql());
+
+			$builder = $this->getPostgresBuilder();
+			$builder->select('*')->from('users')->where('items->available', '=', true);
+			$this->assertEquals('select * from "users" where ("items"->\'available\')::jsonb = \'true\'::jsonb', $builder->toSql());
 		}
 
 		public function testSqlServerWrappingJson() {
@@ -2105,6 +2319,10 @@
 			$builder = $this->getSqlServerBuilder();
 			$builder->select('*')->from('users')->where('items->price->in_usd', '=', 1)->where('items->age', '=', 2);
 			$this->assertEquals('select * from [users] where json_value([items], \'$."price"."in_usd"\') = ? and json_value([items], \'$."age"\') = ?', $builder->toSql());
+
+			$builder = $this->getSqlServerBuilder();
+			$builder->select('*')->from('users')->where('items->available', '=', true);
+			$this->assertEquals('select * from [users] where json_value([items], \'$."available"\') = \'true\'', $builder->toSql());
 		}
 
 		public function testSqliteWrappingJson() {
@@ -2119,6 +2337,10 @@
 			$builder = $this->getSQLiteBuilder();
 			$builder->select('*')->from('users')->where('items->price->in_usd', '=', 1)->where('items->age', '=', 2);
 			$this->assertEquals('select * from "users" where json_extract("items", \'$."price"."in_usd"\') = ? and json_extract("items", \'$."age"\') = ?', $builder->toSql());
+
+			$builder = $this->getSQLiteBuilder();
+			$builder->select('*')->from('users')->where('items->available', '=', true);
+			$this->assertEquals('select * from "users" where json_extract("items", \'$."available"\') = true', $builder->toSql());
 		}
 
 		public function testSQLiteOrderBy() {
@@ -2211,10 +2433,9 @@
 			$this->assertCount(2, $builder->wheres);
 		}
 
-		/**
-		 * @expectedException \BadMethodCallException
-		 */
 		public function testBuilderThrowsExpectedExceptionWithUndefinedMethod() {
+			$this->expectException(BadMethodCallException::class);
+
 			$builder = $this->getBuilder();
 			$builder->getConnection()->shouldReceive('select');
 			$builder->getProcessor()->shouldReceive('processSelect')->andReturn([]);
@@ -2578,7 +2799,7 @@
 
 			$results = collect([['test' => 'foo'], ['test' => 'bar']]);
 
-			$builder->shouldReceive('getCountForPagination')->once()->with($columns)->andReturn(2);
+			$builder->shouldReceive('getCountForPagination')->once()->andReturn(2);
 			$builder->shouldReceive('forPage')->once()->with($page, $perPage)->andReturnSelf();
 			$builder->shouldReceive('get')->once()->andReturn($results);
 
@@ -2604,7 +2825,7 @@
 
 			$results = collect([['test' => 'foo'], ['test' => 'bar']]);
 
-			$builder->shouldReceive('getCountForPagination')->once()->with($columns)->andReturn(2);
+			$builder->shouldReceive('getCountForPagination')->once()->andReturn(2);
 			$builder->shouldReceive('forPage')->once()->with($page, $perPage)->andReturnSelf();
 			$builder->shouldReceive('get')->once()->andReturn($results);
 
@@ -2634,7 +2855,7 @@
 
 			$results = [];
 
-			$builder->shouldReceive('getCountForPagination')->once()->with($columns)->andReturn(0);
+			$builder->shouldReceive('getCountForPagination')->once()->andReturn(0);
 			$builder->shouldNotReceive('forPage');
 			$builder->shouldNotReceive('get');
 
@@ -2649,6 +2870,32 @@
 			$result = $builder->paginate();
 
 			$this->assertEquals(new LengthAwarePaginator($results, 0, $perPage, $page, [
+				'path'     => $path,
+				'pageName' => $pageName,
+			]), $result);
+		}
+
+		public function testPaginateWithSpecificColumns() {
+			$perPage  = 16;
+			$columns  = ['id', 'name'];
+			$pageName = 'page-name';
+			$page     = 1;
+			$builder  = $this->getMockQueryBuilder();
+			$path     = 'http://foo.bar?page=3';
+
+			$results = collect([['id' => 3, 'name' => 'Taylor'], ['id' => 5, 'name' => 'Mohamed']]);
+
+			$builder->shouldReceive('getCountForPagination')->once()->andReturn(2);
+			$builder->shouldReceive('forPage')->once()->with($page, $perPage)->andReturnSelf();
+			$builder->shouldReceive('get')->once()->andReturn($results);
+
+			Paginator::currentPathResolver(function () use ($path) {
+				return $path;
+			});
+
+			$result = $builder->paginate($perPage, $columns, $pageName, $page);
+
+			$this->assertEquals(new LengthAwarePaginator($results, 2, $perPage, $page, [
 				'path'     => $path,
 				'pageName' => $pageName,
 			]), $result);
@@ -2685,12 +2932,12 @@
 
 			$builder = $this->getMySqlBuilder();
 			$builder->select('*')->from('users')->whereJsonContains('users.options->languages', ['en']);
-			$this->assertEquals('select * from `users` where json_contains(`users`.`options`->\'$."languages"\', ?)', $builder->toSql());
+			$this->assertEquals('select * from `users` where json_contains(`users`.`options`, ?, \'$."languages"\')', $builder->toSql());
 			$this->assertEquals(['["en"]'], $builder->getBindings());
 
 			$builder = $this->getMySqlBuilder();
 			$builder->select('*')->from('users')->where('id', '=', 1)->orWhereJsonContains('options->languages', new Raw("'[\"en\"]'"));
-			$this->assertEquals('select * from `users` where `id` = ? or json_contains(`options`->\'$."languages"\', \'["en"]\')', $builder->toSql());
+			$this->assertEquals('select * from `users` where `id` = ? or json_contains(`options`, \'["en"]\', \'$."languages"\')', $builder->toSql());
 			$this->assertEquals([1], $builder->getBindings());
 		}
 
@@ -2711,10 +2958,9 @@
 			$this->assertEquals([1], $builder->getBindings());
 		}
 
-		/**
-		 * @expectedException \RuntimeException
-		 */
 		public function testWhereJsonContainsSqlite() {
+			$this->expectException(RuntimeException::class);
+
 			$builder = $this->getSQLiteBuilder();
 			$builder->select('*')->from('users')->whereJsonContains('options->languages', ['en'])->toSql();
 		}
@@ -2739,12 +2985,12 @@
 		public function testWhereJsonDoesntContainMySql() {
 			$builder = $this->getMySqlBuilder();
 			$builder->select('*')->from('users')->whereJsonDoesntContain('options->languages', ['en']);
-			$this->assertEquals('select * from `users` where not json_contains(`options`->\'$."languages"\', ?)', $builder->toSql());
+			$this->assertEquals('select * from `users` where not json_contains(`options`, ?, \'$."languages"\')', $builder->toSql());
 			$this->assertEquals(['["en"]'], $builder->getBindings());
 
 			$builder = $this->getMySqlBuilder();
 			$builder->select('*')->from('users')->where('id', '=', 1)->orWhereJsonDoesntContain('options->languages', new Raw("'[\"en\"]'"));
-			$this->assertEquals('select * from `users` where `id` = ? or not json_contains(`options`->\'$."languages"\', \'["en"]\')', $builder->toSql());
+			$this->assertEquals('select * from `users` where `id` = ? or not json_contains(`options`, \'["en"]\', \'$."languages"\')', $builder->toSql());
 			$this->assertEquals([1], $builder->getBindings());
 		}
 
@@ -2760,10 +3006,9 @@
 			$this->assertEquals([1], $builder->getBindings());
 		}
 
-		/**
-		 * @expectedException \RuntimeException
-		 */
 		public function testWhereJsonDoesntContainSqlite() {
+			$this->expectException(RuntimeException::class);
+
 			$builder = $this->getSQLiteBuilder();
 			$builder->select('*')->from('users')->whereJsonDoesntContain('options->languages', ['en'])->toSql();
 		}
@@ -2877,6 +3122,16 @@
 			$this->assertEquals(['1', '10'], $builder->getBindings());
 		}
 
+		public function testFromSubWithPrefix() {
+			$builder = $this->getBuilder();
+			$builder->getGrammar()->setTablePrefix('prefix_');
+			$builder->fromSub(function ($query) {
+				$query->select(new Raw('max(last_seen_at) as last_seen_at'))->from('user_sessions')->where('foo', '=', '1');
+			}, 'sessions')->where('bar', '<', '10');
+			$this->assertEquals('select * from (select max(last_seen_at) as last_seen_at from "prefix_user_sessions" where "foo" = ?) as "prefix_sessions" where "bar" < ?', $builder->toSql());
+			$this->assertEquals(['1', '10'], $builder->getBindings());
+		}
+
 		public function testFromSubWithoutBindings() {
 			$builder = $this->getBuilder();
 			$builder->fromSub(function ($query) {
@@ -2982,7 +3237,7 @@
 				// send event
 				/** @var Dispatcher $dispatcher */
 				$dispatcher = app(Dispatcher::class);
-				$dispatcher->fire(new StatementPrepared($builder->getConnection(), $pdoMock));
+				$dispatcher->dispatch(new StatementPrepared($builder->getConnection(), $pdoMock));
 
 				if (empty($data))
 					return;

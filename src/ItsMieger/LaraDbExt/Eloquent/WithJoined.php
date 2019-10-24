@@ -487,9 +487,9 @@
 			if ($relation instanceof BelongsTo) {
 				$query->join(
 					$relation->getRelated()->getTable() . ' as ' . $relationAlias,
-					$parentTable . '.' . $relation->getForeignKey(),
+					$parentTable . '.' . $relation->getForeignKeyName(),
 					'=',
-					$relationAlias . '.' . $relation->getOwnerKey(),
+					$relationAlias . '.' . $relation->getOwnerKeyName(),
 					($withOptions['onlyExisting'] ? 'inner' : 'left')
 				);
 			}

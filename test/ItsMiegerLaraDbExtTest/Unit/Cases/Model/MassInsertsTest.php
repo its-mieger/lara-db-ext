@@ -25,7 +25,7 @@
 		/**
 		 * @inheritdoc
 		 */
-		public function setUp() {
+		public function setUp(): void {
 			parent::setUp();
 
 			// we need a MySQL connection

@@ -16,13 +16,6 @@
 
 	class IdentifiersTest extends TestCase
 	{
-		/**
-		 * @inheritDoc
-		 */
-		protected function setUp() {
-			parent::setUp();
-		}
-
 
 		public function testTable() {
 			$this->assertEquals('test_table', TestModelDummyConnection::table());
