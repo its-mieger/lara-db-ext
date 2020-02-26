@@ -110,6 +110,7 @@
 
 			$columns = [];
 
+			$modelClass = get_called_class();
 
 			// build join data
 			$joinData = [];
@@ -126,8 +127,17 @@
 						$currFieldSql = "{$value}";
 					}
 					else {
+
+						// Here we create a new model instance, set the attributes
+						// and retrieve the attributes again. This way mutations, casts
+						// and so on are applied to the attributes
+						/** @var Model $model */
+						$model = new $modelClass;
+
+						$model->setAttribute($name, $value);
+
 						$currFieldSql = '?';
-						$bindings[]   = $value;
+						$bindings[]   = $model->getAttributes()[$name];
 					}
 
 					$currFields[] = $currFieldSql . ($isFirst ? ' as ' . static::quoteIdentifier($name) : '');

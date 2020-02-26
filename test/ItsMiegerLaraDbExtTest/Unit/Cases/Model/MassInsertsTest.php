@@ -633,4 +633,31 @@
 			$this->assertDatabaseMissing(TestBulkImport::table(), ['id' => 0]);
 		}
 
+		public function testUpdateJoined_mutated() {
+
+			$r1 = factory(TestModelMassInsertMutated::class)->create();
+			$r2 = factory(TestModelMassInsertMutated::class)->create();
+			$r3 = factory(TestModelMassInsertMutated::class)->create();
+
+
+			TestModelMassInsertMutated::updateJoined(
+				[
+					['id' => $r1->id, 'name' => 'v1.1', 'data' => ['a' => 18, 'b' => 'z']],
+					['id' => $r2->id, 'name' => 'v2.1', 'data' => ['a' => 19, 'b' => 'y']],
+					['id' => $r3->id, 'name' => 'v3.1', 'data' => ['a' => 20, 'b' => 'x']],
+				],
+				[
+					'id',
+				]
+			);
+
+
+			$this->assertDatabaseHas(TestModelMassInsertMutated::table(), ['id' => $r1->id, 'name' => 'v1.1', 'u' => $r1->u]);
+			$this->assertDatabaseHas(TestModelMassInsertMutated::table(), ['id' => $r2->id, 'name' => 'v2.1', 'u' => $r2->u]);
+			$this->assertDatabaseHas(TestModelMassInsertMutated::table(), ['id' => $r3->id, 'name' => 'v3.1', 'u' => $r3->u]);
+
+			$this->assertSame(['a' => 18, 'b' => 'z'], TestModelMassInsertMutated::find($r1->id)->data);
+			$this->assertSame(['a' => 19, 'b' => 'y'], TestModelMassInsertMutated::find($r2->id)->data);
+			$this->assertSame(['a' => 20, 'b' => 'x'], TestModelMassInsertMutated::find($r3->id)->data);
+		}
 	}
